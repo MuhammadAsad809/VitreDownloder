@@ -41,6 +41,7 @@ android {
             // Uses Android Gradle default auto-generated debug keystore
         }
         release {
+            signingConfig signingConfigs.debug
             minifyEnabled false
         }
     }

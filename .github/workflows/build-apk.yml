@@ -46,15 +46,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Build Debug APK
+      - name: Build Signed APKs
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug assembleRelease --stacktrace
 
-      - name: Upload Debug APK Artifact
+      - name: Upload Signed APKs
         uses: actions/upload-artifact@v4
         with:
-          name: vitre-app-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: vitre-signed-apks
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
