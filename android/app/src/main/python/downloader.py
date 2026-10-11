@@ -71,6 +71,17 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
     """
     Downloads media directly to target output_directory on device.
     """
+    def emit_progress(payload):
+        if not progress_callback:
+            return
+        try:
+            if hasattr(progress_callback, "onProgress"):
+                progress_callback.onProgress(payload)
+            elif callable(progress_callback):
+                progress_callback(payload)
+        except Exception:
+            pass
+
     def progress_hook(d):
         if progress_callback and d.get('status') == 'downloading':
             total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
@@ -87,9 +98,9 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
                 "speed": speed,
                 "eta": eta
             })
-            progress_callback(payload)
+            emit_progress(payload)
         elif progress_callback and d.get('status') == 'finished':
-            progress_callback(json.dumps({"status": "finished", "percent": 100.0}))
+            emit_progress(json.dumps({"status": "finished", "percent": 100.0}))
 
     chosen_format = format_id if format_id and format_id != "best" else "best[ext=mp4]/best"
     outtmpl = os.path.join(output_directory, '%(title).100s.%(ext)s')

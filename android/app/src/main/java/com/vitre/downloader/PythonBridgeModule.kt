@@ -1,7 +1,6 @@
 package com.vitre.downloader
 
 import android.os.Environment
-import com.chaquo.python.PyObject
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.facebook.react.bridge.Arguments
@@ -73,9 +72,9 @@ class PythonBridgeModule(private val reactContext: ReactApplicationContext) :
                 val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
                 val targetDir = File(downloadsDir, "Vitre").absolutePath
 
-                val progressCallback = object : com.chaquo.python.PyObject() {
-                    fun __call__(payloadStr: String) {
-                        sendEvent("onDownloadProgress", payloadStr)
+                val listener = object : DownloadProgressListener {
+                    override fun onProgress(payloadJson: String) {
+                        sendEvent("onDownloadProgress", payloadJson)
                     }
                 }
 
@@ -84,7 +83,7 @@ class PythonBridgeModule(private val reactContext: ReactApplicationContext) :
                     url,
                     formatId,
                     targetDir,
-                    progressCallback
+                    listener
                 ).toString()
 
                 val json = JSONObject(responseJsonStr)
