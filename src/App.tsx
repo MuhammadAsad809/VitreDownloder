@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { BlurView } from "@react-native-community/blur";
 import {
   SafeAreaView,
   ScrollView,
@@ -17,7 +18,9 @@ import {
   PermissionsAndroid,
   Platform,
   StatusBar,
-  Modal,
+  Animated,
+  PanResponder,
+  BackHandler,
 } from "react-native";
 import {
   LiquidGlassProvider,
@@ -57,10 +60,118 @@ export default function App() {
   const [downloading, setDownloading] = useState(false);
   const [mediaInfo, setMediaInfo] = useState<MediaMetadata | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<string>("best");
+  const [activeCategory, setActiveCategory] = useState("Videos");
+  const sheetTranslateY = useRef(new Animated.Value(700)).current;
+  const sheetBackdropOpacity = sheetTranslateY.interpolate({
+    inputRange: [0, 560],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
+  const loadingProgress = useRef(new Animated.Value(0)).current;
+  const categoryItems = [
+    { name: "Music", icon: "♫" },
+    { name: "Videos", icon: "▶" },
+    { name: "Photos", icon: "▧" },
+    { name: "Downloads", icon: "↓" },
+  ];
   const [progress, setProgress] = useState<{ percent: number; speed: number }>({
     percent: 0,
     speed: 0,
   });
+
+  useEffect(() => {
+    if (!mediaInfo) {
+      sheetTranslateY.setValue(700);
+      return;
+    }
+    sheetTranslateY.setValue(560);
+    const animation = Animated.spring(sheetTranslateY, {
+      toValue: 0,
+      stiffness: 155,
+      damping: 17,
+      mass: 0.78,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [mediaInfo, sheetTranslateY]);
+
+  useEffect(() => {
+    const animation = Animated.timing(loadingProgress, {
+      toValue: loading ? 1 : 0,
+      duration: 280,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [loading, loadingProgress]);
+
+  const dismissPreview = useCallback(() => {
+    Animated.timing(sheetTranslateY, {
+      toValue: 700,
+      duration: 190,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setMediaInfo(null);
+    });
+  }, [sheetTranslateY]);
+
+  useEffect(() => {
+    if (!mediaInfo) return;
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        dismissPreview();
+        return true;
+      }
+    );
+    return () => subscription.remove();
+  }, [mediaInfo, dismissPreview]);
+
+  const sheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          gesture.dy > 7 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderMove: (_event, gesture) => {
+          if (gesture.dy > 0) sheetTranslateY.setValue(gesture.dy);
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (gesture.dy > 130 || gesture.vy > 1.15) {
+            Animated.timing(sheetTranslateY, {
+              toValue: 700,
+              duration: 180,
+              useNativeDriver: true,
+            }).start(({ finished }) => {
+              if (finished) setMediaInfo(null);
+            });
+            return;
+          }
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            stiffness: 190,
+            damping: 15,
+            mass: 0.75,
+            useNativeDriver: true,
+          }).start();
+        },
+      }),
+    [sheetTranslateY]
+  );
+
+  const handleCategoryPress = (category: string) => {
+    if (category === "Downloads") {
+      Alert.alert(
+        "Your downloads",
+        "Saved media is stored in your device’s Downloads/Vitre folder."
+      );
+      return;
+    }
+    setActiveCategory(category);
+    if (category === "Music") setSelectedFormat("audio");
+    if (category === "Videos") setSelectedFormat("best");
+    if (category === "Photos") setSelectedFormat("thumbnail");
+  };
 
   useEffect(() => {
     if (!pythonEvents) return;
@@ -132,7 +243,13 @@ export default function App() {
         );
       }
       setMediaInfo(res as MediaMetadata);
-      setSelectedFormat("best");
+      setSelectedFormat(
+        activeCategory === "Music"
+          ? "audio"
+          : activeCategory === "Photos"
+          ? "thumbnail"
+          : "best"
+      );
     } catch (err: any) {
       Alert.alert("Lookup Failed", err?.message || "Failed to fetch metadata.");
     } finally {
@@ -242,9 +359,18 @@ export default function App() {
         style,
       ]}
     >
+      <BlurView
+        style={StyleSheet.absoluteFill}
+        blurType="dark"
+        blurAmount={24}
+        overlayColor="rgba(106, 137, 190, 0.10)"
+      />
+      <View pointerEvents="none" style={styles.glassTint} />
       {children}
       <View pointerEvents="none" style={styles.glassSpecular}>
         <View style={styles.glassTopReflection} />
+        <View style={styles.glassChromaticEdge} />
+        <View style={styles.glassChromaticEdgeWarm} />
         <View style={styles.glassSideReflection} />
       </View>
     </View>
@@ -311,6 +437,66 @@ export default function App() {
             </Text>
           </GlassCard>
 
+          <View style={styles.categoryHeader}>
+            <Text style={styles.categoryHeading}>Explore</Text>
+            <Text style={styles.categoryHint}>Choose your format</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoryScroller}
+            contentContainerStyle={styles.categoryRow}
+          >
+            {categoryItems.map((category) => {
+              const active = activeCategory === category.name;
+              return (
+                <TouchableOpacity
+                  key={category.name}
+                  style={[
+                    styles.categoryChip,
+                    active && styles.categoryChipActive,
+                  ]}
+                  onPress={() => handleCategoryPress(category.name)}
+                  activeOpacity={0.78}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <BlurView
+                    pointerEvents="none"
+                    style={StyleSheet.absoluteFill}
+                    blurType="dark"
+                    blurAmount={16}
+                    overlayColor="rgba(91, 120, 178, 0.08)"
+                  />
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      styles.categoryChipTint,
+                      active && styles.categoryChipTintActive,
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.categoryIcon,
+                      active && styles.categoryIconActive,
+                    ]}
+                  >
+                    {category.icon}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.categoryLabel,
+                      active && styles.categoryLabelActive,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
           <GlassCard style={styles.glassInputCard}>
             <TextInput
               style={styles.textInput}
@@ -331,32 +517,89 @@ export default function App() {
           </GlassCard>
 
           <TouchableOpacity
-            style={[styles.glassPrimaryButton, loading && styles.buttonDisabled]}
+            style={[styles.glassPrimaryButton, loading && styles.loadingCapsule]}
             onPress={handleFetch}
             disabled={loading || downloading}
             activeOpacity={0.8}
           >
-            {loading ? (
-              <ActivityIndicator color="#09090B" />
-            ) : (
-              <Text style={styles.glassPrimaryButtonText}>Find your media  →</Text>
-            )}
+            <BlurView
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+              blurType="dark"
+              blurAmount={18}
+              overlayColor="rgba(110, 146, 210, 0.22)"
+            />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFillObject,
+                styles.loadingCapsuleOverlay,
+                { opacity: loadingProgress },
+              ]}
+            />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.loadingCapsuleContent,
+                { opacity: loadingProgress },
+              ]}
+            >
+              <ActivityIndicator color="#FFFFFF" size="small" />
+              <Text style={styles.loadingCapsuleText}>Finding your media</Text>
+            </Animated.View>
+            <Animated.Text
+              style={[
+                styles.glassPrimaryButtonText,
+                {
+                  opacity: loadingProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 0],
+                  }),
+                },
+              ]}
+            >
+              Find your media  →
+            </Animated.Text>
           </TouchableOpacity>
 
         </ScrollView>
       </LiquidGlassProvider>
       {mediaInfo && (
-        <Modal
-          visible={!!mediaInfo}
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() => setMediaInfo(null)}
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            styles.previewBackdrop,
+            { opacity: sheetBackdropOpacity },
+          ]}
         >
-          <View style={styles.previewBackdrop}>
+            <BlurView
+              style={StyleSheet.absoluteFill}
+              blurType="dark"
+              blurAmount={18}
+              overlayColor="rgba(6, 9, 18, 0.72)"
+            />
             <View style={styles.previewAuraBlue} pointerEvents="none" />
             <View style={styles.previewAuraViolet} pointerEvents="none" />
-            <View style={styles.previewSheet}>
+            <Animated.View
+              style={[
+                styles.previewSheet,
+                { transform: [{ translateY: sheetTranslateY }] },
+              ]}
+            >
+              <BlurView
+                pointerEvents="none"
+                style={StyleSheet.absoluteFill}
+                blurType="dark"
+                blurAmount={28}
+                overlayColor="rgba(22, 31, 52, 0.34)"
+              />
+              <View pointerEvents="none" style={styles.previewSheetTint} />
+              <View
+                style={styles.sheetDragArea}
+                {...sheetPanResponder.panHandlers}
+              >
+                <View style={styles.sheetGrabber} />
+              </View>
               <View style={styles.previewToolbar}>
                 <View>
                   <Text style={styles.previewEyebrow}>MEDIA FOUND</Text>
@@ -364,7 +607,7 @@ export default function App() {
                 </View>
                 <TouchableOpacity
                   style={styles.previewCloseButton}
-                  onPress={() => setMediaInfo(null)}
+                  onPress={dismissPreview}
                   accessibilityRole="button"
                   accessibilityLabel="Close media preview"
                 >
@@ -526,9 +769,8 @@ export default function App() {
                   </TouchableOpacity>
                 </GlassCard>
               </ScrollView>
-            </View>
-          </View>
-        </Modal>
+            </Animated.View>
+        </Animated.View>
       )}
     </SafeAreaView>
   );
@@ -579,6 +821,10 @@ const styles = StyleSheet.create({
     height: 210,
     borderRadius: 105,
     backgroundColor: "rgba(56, 189, 248, 0.07)",
+  },
+  glassTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(134, 169, 235, 0.075)",
   },
   glassHeader: {
     borderRadius: 28,
@@ -651,6 +897,80 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 1,
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 24,
+    marginBottom: 11,
+    paddingHorizontal: 2,
+  },
+  categoryHeading: {
+    color: "rgba(246,249,255,0.94)",
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  categoryHint: {
+    color: "rgba(208,220,245,0.52)",
+    fontSize: 11,
+  },
+  categoryScroller: {
+    flexGrow: 0,
+    marginHorizontal: -20,
+    marginBottom: 20,
+  },
+  categoryRow: {
+    paddingHorizontal: 20,
+    paddingVertical: 3,
+  },
+  categoryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 15,
+    height: 43,
+    borderRadius: 23,
+    marginRight: 9,
+    backgroundColor: "rgba(220, 232, 255, 0.075)",
+    borderWidth: 1,
+    borderColor: "rgba(235, 243, 255, 0.17)",
+    borderTopColor: "rgba(255,255,255,0.38)",
+    shadowColor: "#88AFFF",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.10,
+    shadowRadius: 9,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  categoryChipActive: {
+    backgroundColor: "rgba(124, 164, 255, 0.25)",
+    borderColor: "rgba(195, 219, 255, 0.64)",
+    borderTopColor: "rgba(255,255,255,0.82)",
+  },
+  categoryChipTint: {
+    backgroundColor: "rgba(173, 201, 255, 0.06)",
+  },
+  categoryChipTintActive: {
+    backgroundColor: "rgba(115, 158, 255, 0.20)",
+  },
+  categoryIcon: {
+    color: "rgba(226,236,255,0.72)",
+    fontSize: 16,
+    marginRight: 8,
+    fontWeight: "700",
+  },
+  categoryIconActive: {
+    color: "#FFFFFF",
+  },
+  categoryLabel: {
+    color: "rgba(229,237,252,0.72)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  categoryLabelActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   heroTitle: {
     color: "#FFFFFF",
@@ -726,7 +1046,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   glassPrimaryButton: {
-    backgroundColor: "rgba(204, 225, 255, 0.78)",
+    backgroundColor: "rgba(174, 204, 255, 0.28)",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.74)",
     borderTopColor: "#FFFFFF",
@@ -740,19 +1060,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
+    overflow: "hidden",
   },
   glassPrimaryButtonText: {
-    color: "#09111E",
+    color: "#F7FAFF",
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: 0.1,
+  },
+  loadingCapsule: {
+    backgroundColor: "rgba(112, 154, 241, 0.36)",
+    borderColor: "rgba(211,228,255,0.78)",
+    borderTopColor: "#FFFFFF",
+  },
+  loadingCapsuleOverlay: {
+    backgroundColor: "rgba(67, 109, 203, 0.52)",
+  },
+  loadingCapsuleContent: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingCapsuleText: {
+    color: "#FFFFFF",
+    marginLeft: 11,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.15,
   },
   buttonDisabled: {
     opacity: 0.55,
   },
   previewBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(3, 6, 14, 0.62)",
+    zIndex: 1000,
+    elevation: 30,
+    backgroundColor: "rgba(3, 6, 14, 0.70)",
     justifyContent: "center",
     paddingHorizontal: 18,
     paddingVertical: 34,
@@ -762,7 +1110,7 @@ const styles = StyleSheet.create({
     maxHeight: "90%",
     borderRadius: 30,
     padding: 14,
-    backgroundColor: "rgba(22, 31, 52, 0.88)",
+    backgroundColor: "rgba(22, 31, 52, 0.42)",
     borderWidth: 1,
     borderColor: "rgba(225, 237, 255, 0.27)",
     borderTopColor: "rgba(255,255,255,0.70)",
@@ -790,6 +1138,22 @@ const styles = StyleSheet.create({
     bottom: "12%",
     left: -130,
     backgroundColor: "rgba(155, 103, 255, 0.14)",
+  },
+  previewSheetTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(119, 153, 219, 0.08)",
+  },
+  sheetDragArea: {
+    height: 34,
+    alignItems: "center",
+    justifyContent: "flex-start",
+  },
+  sheetGrabber: {
+    width: 39,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.45)",
+    marginTop: 3,
   },
   previewToolbar: {
     flexDirection: "row",
@@ -844,6 +1208,22 @@ const styles = StyleSheet.create({
     right: 14,
     height: 1,
     backgroundColor: "rgba(255,255,255,0.70)",
+  },
+  glassChromaticEdge: {
+    position: "absolute",
+    top: 1,
+    left: 20,
+    width: "34%",
+    height: 1,
+    backgroundColor: "rgba(164, 207, 255, 0.82)",
+  },
+  glassChromaticEdgeWarm: {
+    position: "absolute",
+    top: 2,
+    left: "54%",
+    width: "22%",
+    height: 1,
+    backgroundColor: "rgba(255, 182, 211, 0.52)",
   },
   glassSideReflection: {
     position: "absolute",
