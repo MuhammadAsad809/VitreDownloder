@@ -234,15 +234,19 @@ export default function App() {
     <View
       style={[
         {
-          backgroundColor: "rgba(24,24,27,0.72)",
+          backgroundColor: "rgba(192, 211, 255, 0.085)",
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.14)",
-          borderTopColor: "rgba(255,255,255,0.28)",
+          borderColor: "rgba(226, 236, 255, 0.20)",
+          borderTopColor: "rgba(255,255,255,0.52)",
         },
         style,
       ]}
     >
       {children}
+      <View pointerEvents="none" style={styles.glassSpecular}>
+        <View style={styles.glassTopReflection} />
+        <View style={styles.glassSideReflection} />
+      </View>
     </View>
   );
 
@@ -350,6 +354,8 @@ export default function App() {
           onRequestClose={() => setMediaInfo(null)}
         >
           <View style={styles.previewBackdrop}>
+            <View style={styles.previewAuraBlue} pointerEvents="none" />
+            <View style={styles.previewAuraViolet} pointerEvents="none" />
             <View style={styles.previewSheet}>
               <View style={styles.previewToolbar}>
                 <View>
@@ -580,9 +586,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     marginBottom: 0,
     overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.075)",
-    borderColor: "rgba(255,255,255,0.17)",
-    borderTopColor: "rgba(255,255,255,0.32)",
+    backgroundColor: "rgba(165, 196, 255, 0.10)",
+    borderColor: "rgba(222, 235, 255, 0.22)",
+    borderTopColor: "rgba(255,255,255,0.58)",
+    shadowColor: "#8AB4FF",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 8,
   },
   headerTitleRow: {
     flexDirection: "row",
@@ -685,9 +696,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: "hidden",
     height: 58,
-    backgroundColor: "rgba(255,255,255,0.085)",
-    borderColor: "rgba(255,255,255,0.16)",
-    borderTopColor: "rgba(255,255,255,0.30)",
+    backgroundColor: "rgba(178, 205, 255, 0.10)",
+    borderColor: "rgba(227, 237, 255, 0.23)",
+    borderTopColor: "rgba(255,255,255,0.58)",
+    shadowColor: "#88AFFF",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 5,
   },
   textInput: {
     flex: 1,
@@ -696,10 +712,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   glassPasteButton: {
-    backgroundColor: "rgba(39, 39, 42, 0.80)",
+    backgroundColor: "rgba(224, 234, 255, 0.14)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.14)",
-    borderTopColor: "rgba(255, 255, 255, 0.30)",
+    borderColor: "rgba(255, 255, 255, 0.24)",
+    borderTopColor: "rgba(255,255,255,0.58)",
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 12,
@@ -710,10 +726,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   glassPrimaryButton: {
-    backgroundColor: "rgba(227, 239, 255, 0.96)",
+    backgroundColor: "rgba(204, 225, 255, 0.78)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.68)",
+    borderColor: "rgba(255, 255, 255, 0.74)",
     borderTopColor: "#FFFFFF",
+    shadowColor: "#A9C9FF",
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 0.30,
+    shadowRadius: 18,
+    elevation: 8,
     height: 54,
     borderRadius: 20,
     alignItems: "center",
@@ -731,7 +752,7 @@ const styles = StyleSheet.create({
   },
   previewBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(3, 6, 14, 0.78)",
+    backgroundColor: "rgba(3, 6, 14, 0.62)",
     justifyContent: "center",
     paddingHorizontal: 18,
     paddingVertical: 34,
@@ -741,11 +762,34 @@ const styles = StyleSheet.create({
     maxHeight: "90%",
     borderRadius: 30,
     padding: 14,
-    backgroundColor: "rgba(16, 21, 33, 0.97)",
+    backgroundColor: "rgba(22, 31, 52, 0.88)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.20)",
-    borderTopColor: "rgba(255,255,255,0.38)",
+    borderColor: "rgba(225, 237, 255, 0.27)",
+    borderTopColor: "rgba(255,255,255,0.70)",
+    shadowColor: "#789BFF",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.30,
+    shadowRadius: 32,
+    elevation: 20,
     overflow: "hidden",
+  },
+  previewAuraBlue: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    top: "16%",
+    right: -130,
+    backgroundColor: "rgba(82, 141, 255, 0.19)",
+  },
+  previewAuraViolet: {
+    position: "absolute",
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    bottom: "12%",
+    left: -130,
+    backgroundColor: "rgba(155, 103, 255, 0.14)",
   },
   previewToolbar: {
     flexDirection: "row",
@@ -789,14 +833,39 @@ const styles = StyleSheet.create({
   previewScrollContent: {
     paddingBottom: 4,
   },
+  glassSpecular: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  glassTopReflection: {
+    position: "absolute",
+    top: 0,
+    left: 14,
+    right: 14,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.70)",
+  },
+  glassSideReflection: {
+    position: "absolute",
+    top: 14,
+    right: 0,
+    width: 1,
+    bottom: 14,
+    backgroundColor: "rgba(206,225,255,0.20)",
+  },
   glassMediaCard: {
     borderRadius: 26,
     padding: 16,
     marginBottom: 0,
     overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.075)",
-    borderColor: "rgba(255,255,255,0.17)",
-    borderTopColor: "rgba(255,255,255,0.32)",
+    backgroundColor: "rgba(165, 196, 255, 0.10)",
+    borderColor: "rgba(222, 235, 255, 0.22)",
+    borderTopColor: "rgba(255,255,255,0.58)",
+    shadowColor: "#8AB4FF",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 8,
   },
   thumbnailWrapper: {
     position: "relative",
@@ -820,9 +889,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   durationBadge: {
-    backgroundColor: "rgba(9, 9, 11, 0.75)",
+    backgroundColor: "rgba(11, 18, 34, 0.62)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.15)",
+    borderColor: "rgba(255, 255, 255, 0.25)",
+    borderTopColor: "rgba(255,255,255,0.60)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -833,10 +903,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   platformBadge: {
-    backgroundColor: "rgba(59, 130, 246, 0.35)",
+    backgroundColor: "rgba(95, 156, 255, 0.32)",
     borderWidth: 1,
-    borderColor: "#3B82F6",
-    borderTopColor: "rgba(147, 197, 253, 0.8)",
+    borderColor: "rgba(170,205,255,0.65)",
+    borderTopColor: "rgba(255,255,255,0.85)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -873,9 +943,10 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   glassChip: {
-    backgroundColor: "rgba(39, 39, 42, 0.7)",
+    backgroundColor: "rgba(207, 224, 255, 0.10)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderColor: "rgba(238, 245, 255, 0.21)",
+    borderTopColor: "rgba(255,255,255,0.46)",
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -884,9 +955,9 @@ const styles = StyleSheet.create({
     minWidth: 78,
   },
   glassChipActive: {
-    backgroundColor: "rgba(59, 130, 246, 0.35)",
-    borderColor: "#3B82F6",
-    borderTopColor: "rgba(147, 197, 253, 0.7)",
+    backgroundColor: "rgba(112, 166, 255, 0.27)",
+    borderColor: "rgba(185, 214, 255, 0.70)",
+    borderTopColor: "rgba(255,255,255,0.86)",
   },
   glassChipIcon: {
     fontSize: 18,
@@ -912,17 +983,19 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   glassStreamBadge: {
-    backgroundColor: "rgba(39, 39, 42, 0.65)",
+    backgroundColor: "rgba(207, 224, 255, 0.085)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: "rgba(238, 245, 255, 0.18)",
+    borderTopColor: "rgba(255,255,255,0.42)",
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginRight: 8,
   },
   glassStreamBadgeActive: {
-    backgroundColor: "rgba(59, 130, 246, 0.3)",
-    borderColor: "#60A5FA",
+    backgroundColor: "rgba(112, 166, 255, 0.24)",
+    borderColor: "rgba(185, 214, 255, 0.65)",
+    borderTopColor: "rgba(255,255,255,0.78)",
   },
   glassStreamText: {
     color: "#E4E4E7",
@@ -939,7 +1012,10 @@ const styles = StyleSheet.create({
   },
   glassProgressTrack: {
     height: 28,
-    backgroundColor: "rgba(39, 39, 42, 0.7)",
+    backgroundColor: "rgba(217, 231, 255, 0.09)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.17)",
+    borderTopColor: "rgba(255,255,255,0.40)",
     borderRadius: 14,
     marginTop: 16,
     overflow: "hidden",
@@ -950,7 +1026,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "rgba(59, 130, 246, 0.55)",
+    backgroundColor: "rgba(122, 169, 255, 0.58)",
     borderRadius: 14,
   },
   glassProgressText: {
@@ -961,10 +1037,15 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   glassDownloadButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: "rgba(87, 138, 255, 0.66)",
     borderWidth: 1,
-    borderColor: "rgba(96, 165, 250, 0.6)",
-    borderTopColor: "rgba(255, 255, 255, 0.40)",
+    borderColor: "rgba(191, 216, 255, 0.72)",
+    borderTopColor: "rgba(255, 255, 255, 0.90)",
+    shadowColor: "#6EA2FF",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 7,
     height: 50,
     borderRadius: 18,
     alignItems: "center",
