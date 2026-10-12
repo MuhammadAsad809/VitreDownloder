@@ -3,15 +3,30 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "com.chaquo.python"
 
+/**
+ * React Native configuration block (RN 0.73+)
+ * Do NOT use the old bundleInDebug / bundleInRelease properties – they no longer exist.
+ */
+react {
+    // Project root (two levels up from android/app)
+    root = file("../../")
+    reactNativeDir = file("../../node_modules/react-native")
+    codegenDir = file("../../node_modules/@react-native/codegen")
+    cliFile = file("../../node_modules/react-native/cli.js")
+    entryFile = file("../../index.js")
+}
+
+def enableHermes = (findProperty('hermesEnabled') ?: "true").toBoolean()
+
 android {
-    ndkVersion rootProject.ext.has('ndkVersion') ? rootProject.ext.ndkVersion : "26.1.10909125"
-    compileSdkVersion 34
+    ndkVersion rootProject.ext.ndkVersion
+    compileSdk rootProject.ext.compileSdkVersion
     namespace "com.vitre.downloader"
 
     defaultConfig {
         applicationId "com.vitre.downloader"
-        minSdkVersion 24
-        targetSdkVersion 34
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
 
@@ -19,38 +34,61 @@ android {
             abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
         }
 
+        // Chaquopy – embed Python 3.11 + yt-dlp + certifi
         python {
             version "3.11"
             pip {
-                install "yt-dlp"
+                // Pin a recent stable version for reproducible builds
+                install "yt-dlp==2024.12.23"
                 install "certifi"
             }
         }
     }
 
+    signingConfigs {
+        debug {
+            // Uses the default Android debug keystore
+        }
+    }
+
     buildTypes {
         debug {
-            // Uses Android Gradle default auto-generated debug keystore
+            signingConfig signingConfigs.debug
         }
         release {
+            // For CI we reuse the debug keystore. Replace with a real release keystore later.
+            signingConfig signingConfigs.debug
             minifyEnabled false
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+
+    // Needed for Chaquopy + modern AGP
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
         }
     }
 }
 
-react {
-    root = file("../../")
-    reactNativeDir = file("../../node_modules/react-native")
-    cliFile = file("../../node_modules/react-native/cli.js")
-    entryFile = file("../../index.js")
-    bundleInDebug = true
-    bundleInRelease = true
-}
-
 dependencies {
+    // React Native core
     implementation("com.facebook.react:react-android")
+
+    // Hermes (required because hermesEnabled=true in gradle.properties)
+    if (enableHermes) {
+        implementation("com.facebook.react:hermes-android")
+    }
+
+    // Coroutines used by the Kotlin bridge
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // Required because styles.xml uses Theme.AppCompat
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.core:core-ktx:1.12.0")
 }
 
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
+// Autolinking for React Native native modules
+apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+applyNativeModulesAppBuildGradle(project)

@@ -111,10 +111,17 @@ export default function App() {
 
     try {
       const responseStr = await PythonBridgeModule.fetchMediaInfo(url.trim());
-      const res: MediaMetadata = JSON.parse(responseStr);
-      setMediaInfo(res);
+      const res = JSON.parse(responseStr);
+
+      if (!res || res.success === false) {
+        throw new Error(res?.error || "Unable to extract media info from this URL.");
+      }
+
+      setMediaInfo(res as MediaMetadata);
       if (res.formats && res.formats.length > 0) {
         setSelectedFormat(res.formats[0].format_id);
+      } else {
+        setSelectedFormat("best");
       }
     } catch (err: any) {
       Alert.alert("Lookup Failed", err?.message || "Failed to fetch metadata.");
@@ -136,10 +143,16 @@ export default function App() {
     }
 
     setDownloading(true);
+    setProgress({ percent: 0, speed: 0 });
     try {
       const resultStr = await PythonBridgeModule.downloadMedia(url.trim(), selectedFormat);
       const res = JSON.parse(resultStr);
-      Alert.alert("Download Completed", `Saved to:\n${res.filePath}`);
+
+      if (!res || res.success === false) {
+        throw new Error(res?.error || "Download failed.");
+      }
+
+      Alert.alert("Download Completed", `Saved to:\n${res.filePath || "Downloads/Vitre/"}`);
     } catch (err: any) {
       Alert.alert("Download Error", err?.message || "Download failed.");
     } finally {

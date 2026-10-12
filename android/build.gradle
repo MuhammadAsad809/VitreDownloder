@@ -20,30 +20,10 @@ buildscript {
     }
 }
 
-ext {
-    buildToolsVersion = "34.0.0"
-    minSdkVersion = 24
-    compileSdkVersion = 34
-    targetSdkVersion = 34
-    ndkVersion = "26.1.10909125"
-    kotlinVersion = "1.9.22"
-}
-
 allprojects {
     repositories {
         google()
         mavenCentral()
         maven { url "https://chaquo.com/maven" }
-    }
-}
-
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty("android")) {
-            android {
-                compileSdkVersion 34
-                buildToolsVersion "34.0.0"
-            }
-        }
     }
 }
