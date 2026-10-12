@@ -30,10 +30,7 @@ def _ua_for(url: str) -> str:
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
             "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         )
-    return (
-        "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-    )
+    return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 
 def get_media_info(url: str) -> str:
@@ -70,7 +67,9 @@ def get_media_info(url: str) -> str:
         "noplaylist": True,
         "cachedir": False,
         "extractor_args": {
-            "youtube": {"player_client": ["tv", "mweb", "android", "ios"]}
+            "youtube": {
+                "player_client": ["tv", "web", "mweb"],
+            }
         },
         "http_headers": {
             "User-Agent": _ua_for(clean_url),
@@ -95,18 +94,27 @@ def get_media_info(url: str) -> str:
 
             formats = []
             for f in meta.get("formats") or []:
-                if not f.get("url") and not f.get("fragments"):
+                ext = (f.get("ext") or "").lower()
+                # Skip storyboards / images / mhtml / subtitle only
+                if ext in ("mhtml", "jpg", "png", "webp"):
                     continue
                 vcodec = f.get("vcodec") or "none"
                 acodec = f.get("acodec") or "none"
+                if vcodec == "none" and acodec == "none":
+                    continue
+                # Need url or fragments to be a downloadable stream
+                if not f.get("url") and not f.get("fragments"):
+                    continue
+
                 height = f.get("height") or 0
+                width = f.get("width") or 0
                 has_video = vcodec != "none"
                 has_audio = acodec != "none"
-                res_label = f.get("resolution") or (f"{height}p" if height else ("Audio" if has_audio else "unknown"))
+                res_label = f.get("resolution") or (f"{width}x{height}" if height else ("Audio" if has_audio else "unknown"))
 
                 formats.append({
                     "format_id": str(f.get("format_id")),
-                    "ext": f.get("ext") or "mp4",
+                    "ext": ext or "mp4",
                     "resolution": res_label,
                     "height": height,
                     "filesize": f.get("filesize") or f.get("filesize_approx") or 0,
@@ -116,7 +124,7 @@ def get_media_info(url: str) -> str:
                     "quality_note": f.get("format_note") or "",
                 })
 
-            # Sort: highest video first, then audio-only
+            # Sort: highest video resolution first, then audio-only
             formats.sort(key=lambda x: (x["has_video"], x["height"], x["filesize"]), reverse=True)
 
             # Pick highest quality thumbnail
@@ -228,10 +236,10 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
     # Quality presets from UI
     presets = {
         "best": "bestvideo*+bestaudio/best",
-        "1080": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
-        "720": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
-        "480": "bestvideo[height<=480]+bestaudio/best[height<=480]/best",
-        "360": "bestvideo[height<=360]+bestaudio/best[height<=360]/best",
+        "1080": "bestvideo[height<=1080]+bestaudio/bestvideo+bestaudio/best",
+        "720": "bestvideo[height<=720]+bestaudio/bestvideo+bestaudio/best",
+        "480": "bestvideo[height<=480]+bestaudio/bestvideo+bestaudio/best",
+        "360": "bestvideo[height<=360]+bestaudio/bestvideo+bestaudio/best",
         "audio": "bestaudio/best",
     }
 
@@ -253,7 +261,9 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
         "writesubtitles": False,
         "progress_hooks": [progress_hook],
         "extractor_args": {
-            "youtube": {"player_client": ["tv", "mweb", "android"]}
+            "youtube": {
+                "player_client": ["tv", "web", "mweb"],
+            }
         },
         "http_headers": {
             "User-Agent": _ua_for(clean_url),

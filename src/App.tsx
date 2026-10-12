@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   SafeAreaView,
   ScrollView,
@@ -42,16 +42,6 @@ interface MediaMetadata {
   extractor: string;
   formats: FormatItem[];
 }
-
-const QUALITY_PRESETS = [
-  { id: "best", label: "Best", sub: "Max 1080p+", icon: "✨" },
-  { id: "1080", label: "1080p", sub: "Full HD", icon: "🎬" },
-  { id: "720", label: "720p", sub: "HD", icon: "📺" },
-  { id: "480", label: "480p", sub: "SD", icon: "⚡" },
-  { id: "360", label: "360p", sub: "Data Saver", icon: "📱" },
-  { id: "audio", label: "Audio", sub: "MP3 / M4A", icon: "🎵" },
-  { id: "thumbnail", label: "Thumbnail", sub: "Cover Art", icon: "🖼️" },
-];
 
 export default function App() {
   const [url, setUrl] = useState("");
@@ -169,6 +159,45 @@ export default function App() {
     }
   };
 
+  // Compute available presets dynamically from REAL extracted streams
+  const availablePresets = useMemo(() => {
+    if (!mediaInfo) return [];
+
+    const videoFormats = (mediaInfo.formats || []).filter(
+      (f) => f.has_video && (f.height || 0) > 0
+    );
+    const maxHeight = videoFormats.reduce((max, f) => Math.max(max, f.height || 0), 0);
+
+    const presets: Array<{ id: string; label: string; sub: string; icon: string }> = [];
+
+    if (maxHeight >= 1080) {
+      presets.push({ id: "1080", label: "1080p", sub: "Full HD", icon: "🎬" });
+    }
+    if (maxHeight >= 720) {
+      presets.push({ id: "720", label: "720p", sub: "HD", icon: "📺" });
+    }
+    if (maxHeight >= 480) {
+      presets.push({ id: "480", label: "480p", sub: "SD", icon: "⚡" });
+    }
+    if (maxHeight >= 360) {
+      presets.push({ id: "360", label: "360p", sub: "Standard", icon: "📱" });
+    }
+
+    // Always include Best available (reflecting true max height)
+    presets.push({
+      id: "best",
+      label: "Best",
+      sub: maxHeight > 0 ? `Max (${maxHeight}p)` : "Auto Best",
+      icon: "✨",
+    });
+
+    // Always include Audio only and Thumbnail
+    presets.push({ id: "audio", label: "Audio", sub: "MP3 / M4A", icon: "🎵" });
+    presets.push({ id: "thumbnail", label: "Thumbnail", sub: "Cover Art", icon: "🖼️" });
+
+    return presets;
+  }, [mediaInfo]);
+
   const formatFileSize = (bytes: number) => {
     if (!bytes || bytes <= 0) return "";
     const mb = bytes / (1024 * 1024);
@@ -273,12 +302,12 @@ export default function App() {
               {mediaInfo.title}
             </Text>
 
-            {/* Quality Presets Selector (HD, Audio, Thumbnail) */}
-            <Text style={styles.sectionHeader}>Select Quality & Preset</Text>
+            {/* Quality Presets Selector (Dynamically Filtered to Real Streams) */}
+            <Text style={styles.sectionHeader}>Available Quality Presets</Text>
             <FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
-              data={QUALITY_PRESETS}
+              data={availablePresets}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.presetsList}
               renderItem={({ item }) => {
@@ -305,14 +334,14 @@ export default function App() {
               }}
             />
 
-            {/* Raw Streams List if Available */}
+            {/* Raw Streams List (mhtml/storyboards already stripped) */}
             {mediaInfo.formats && mediaInfo.formats.length > 0 && (
               <>
                 <Text style={styles.sectionHeaderSub}>Detected Raw Streams</Text>
                 <FlatList
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  data={mediaInfo.formats.slice(0, 6)}
+                  data={mediaInfo.formats.slice(0, 8)}
                   keyExtractor={(item) => item.format_id}
                   contentContainerStyle={styles.streamsList}
                   renderItem={({ item }) => {
