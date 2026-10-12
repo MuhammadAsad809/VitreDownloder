@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "react": "18.2.0",
-    "react-native": "0.73.6"
+    "react-native": "0.73.6",
+    "liquid-glass-kit": "file:./liquid-glass-kit"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

@@ -18,9 +18,16 @@ import {
   Platform,
   StatusBar,
 } from "react-native";
+import {
+  LiquidGlassProvider,
+  LiquidGlassView,
+  isLiquidGlassSupported,
+} from "liquid-glass-kit";
 
 const { PythonBridgeModule } = NativeModules;
-const pythonEvents = PythonBridgeModule ? new NativeEventEmitter(PythonBridgeModule) : null;
+const pythonEvents = PythonBridgeModule
+  ? new NativeEventEmitter(PythonBridgeModule)
+  : null;
 
 interface FormatItem {
   format_id: string;
@@ -56,20 +63,22 @@ export default function App() {
 
   useEffect(() => {
     if (!pythonEvents) return;
-    const subscription = pythonEvents.addListener("onDownloadProgress", (data: string) => {
-      try {
-        const parsed = JSON.parse(data);
-        if (parsed.percent !== undefined) {
-          setProgress({
-            percent: parsed.percent,
-            speed: parsed.speed || 0,
-          });
+    const subscription = pythonEvents.addListener(
+      "onDownloadProgress",
+      (data: string) => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.percent !== undefined) {
+            setProgress({
+              percent: parsed.percent,
+              speed: parsed.speed || 0,
+            });
+          }
+        } catch (e) {
+          console.error("Progress JSON parse error:", e);
         }
-      } catch (e) {
-        console.error("Progress JSON parse error:", e);
       }
-    });
-
+    );
     return () => subscription.remove();
   }, []);
 
@@ -79,7 +88,8 @@ export default function App() {
         PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
         {
           title: "Storage Permission Required",
-          message: "Vitre needs storage permission to save downloads to your device.",
+          message:
+            "Vitre needs storage permission to save downloads to your device.",
           buttonPositive: "Allow",
         }
       );
@@ -102,24 +112,24 @@ export default function App() {
       Alert.alert("Input Required", "Please enter or paste a valid media URL.");
       return;
     }
-
     if (!PythonBridgeModule) {
-      Alert.alert("Bridge Error", "PythonBridgeModule is not linked or initialized.");
+      Alert.alert(
+        "Bridge Error",
+        "PythonBridgeModule is not linked or initialized."
+      );
       return;
     }
-
     setLoading(true);
     setMediaInfo(null);
     setProgress({ percent: 0, speed: 0 });
-
     try {
       const responseStr = await PythonBridgeModule.fetchMediaInfo(url.trim());
       const res = JSON.parse(responseStr);
-
       if (!res || res.success === false) {
-        throw new Error(res?.error || "Unable to extract media info from this URL.");
+        throw new Error(
+          res?.error || "Unable to extract media info from this URL."
+        );
       }
-
       setMediaInfo(res as MediaMetadata);
       setSelectedFormat("best");
     } catch (err: any) {
@@ -135,23 +145,25 @@ export default function App() {
       Alert.alert("Permission Denied", "Cannot write to Downloads directory.");
       return;
     }
-
     if (!PythonBridgeModule) {
       Alert.alert("Bridge Error", "PythonBridgeModule is not linked.");
       return;
     }
-
     setDownloading(true);
     setProgress({ percent: 0, speed: 0 });
     try {
-      const resultStr = await PythonBridgeModule.downloadMedia(url.trim(), selectedFormat);
+      const resultStr = await PythonBridgeModule.downloadMedia(
+        url.trim(),
+        selectedFormat
+      );
       const res = JSON.parse(resultStr);
-
       if (!res || res.success === false) {
         throw new Error(res?.error || "Download failed.");
       }
-
-      Alert.alert("Download Completed", `Saved to:\n${res.filePath || "Downloads/Vitre/"}`);
+      Alert.alert(
+        "Download Completed",
+        `Saved to:\n${res.filePath || "Downloads/Vitre/"}`
+      );
     } catch (err: any) {
       Alert.alert("Download Error", err?.message || "Download failed.");
     } finally {
@@ -159,42 +171,42 @@ export default function App() {
     }
   };
 
-  // Compute available presets dynamically from REAL extracted streams
   const availablePresets = useMemo(() => {
     if (!mediaInfo) return [];
-
     const videoFormats = (mediaInfo.formats || []).filter(
       (f) => f.has_video && (f.height || 0) > 0
     );
-    const maxHeight = videoFormats.reduce((max, f) => Math.max(max, f.height || 0), 0);
-
-    const presets: Array<{ id: string; label: string; sub: string; icon: string }> = [];
-
-    if (maxHeight >= 1080) {
+    const maxHeight = videoFormats.reduce(
+      (max, f) => Math.max(max, f.height || 0),
+      0
+    );
+    const presets: Array<{
+      id: string;
+      label: string;
+      sub: string;
+      icon: string;
+    }> = [];
+    if (maxHeight >= 1080)
       presets.push({ id: "1080", label: "1080p", sub: "Full HD", icon: "🎬" });
-    }
-    if (maxHeight >= 720) {
+    if (maxHeight >= 720)
       presets.push({ id: "720", label: "720p", sub: "HD", icon: "📺" });
-    }
-    if (maxHeight >= 480) {
+    if (maxHeight >= 480)
       presets.push({ id: "480", label: "480p", sub: "SD", icon: "⚡" });
-    }
-    if (maxHeight >= 360) {
+    if (maxHeight >= 360)
       presets.push({ id: "360", label: "360p", sub: "Standard", icon: "📱" });
-    }
-
-    // Always include Best available (reflecting true max height)
     presets.push({
       id: "best",
       label: "Best",
       sub: maxHeight > 0 ? `Max (${maxHeight}p)` : "Auto Best",
       icon: "✨",
     });
-
-    // Always include Audio only and Thumbnail
     presets.push({ id: "audio", label: "Audio", sub: "MP3 / M4A", icon: "🎵" });
-    presets.push({ id: "thumbnail", label: "Thumbnail", sub: "Cover Art", icon: "🖼️" });
-
+    presets.push({
+      id: "thumbnail",
+      label: "Thumbnail",
+      sub: "Cover Art",
+      icon: "🖼️",
+    });
     return presets;
   }, [mediaInfo]);
 
@@ -211,197 +223,260 @@ export default function App() {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
+  const GlassFallback = ({
+    children,
+    style,
+  }: {
+    children: React.ReactNode;
+    style?: any;
+  }) => (
+    <View
+      style={[
+        {
+          backgroundColor: "rgba(24,24,27,0.72)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.14)",
+          borderTopColor: "rgba(255,255,255,0.28)",
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+
+  const GlassCard = ({
+    children,
+    style,
+    interactive = false,
+  }: {
+    children: React.ReactNode;
+    style?: any;
+    interactive?: boolean;
+  }) => {
+    if (isLiquidGlassSupported) {
+      return (
+        <LiquidGlassView
+          style={style}
+          interactive={interactive}
+          chromaticAberration={0.25}
+        >
+          {children}
+        </LiquidGlassView>
+      );
+    }
+    return <GlassFallback style={style}>{children}</GlassFallback>;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#09090B" />
-
-      {/* Liquid ambient refractive glowing orbs behind glass */}
       <View style={styles.ambientOrbTop} pointerEvents="none" />
       <View style={styles.ambientOrbCenter} pointerEvents="none" />
       <View style={styles.ambientOrbBottom} pointerEvents="none" />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Liquid Glass Header */}
-        <View style={styles.glassHeader}>
-          <View style={styles.headerTitleRow}>
-            <Text style={styles.brandTitle}>VITRE</Text>
-            <View style={styles.proBadge}>
-              <Text style={styles.proBadgeText}>HD</Text>
-            </View>
-          </View>
-          <Text style={styles.brandSubtitle}>
-            Native yt-dlp Liquid Engine • YouTube, TikTok & Reels
-          </Text>
-        </View>
-
-        {/* Liquid Glass Input Row */}
-        <View style={styles.glassInputCard}>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Paste media link (YouTube, TikTok, Reels)..."
-            placeholderTextColor="#71717A"
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={styles.glassPasteButton}
-            onPress={handlePaste}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.glassPasteText}>Paste</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Primary Liquid Glass Analyze Button */}
-        <TouchableOpacity
-          style={[styles.glassPrimaryButton, loading && styles.buttonDisabled]}
-          onPress={handleFetch}
-          disabled={loading || downloading}
-          activeOpacity={0.8}
+      <LiquidGlassProvider style={StyleSheet.absoluteFill}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          {loading ? (
-            <ActivityIndicator color="#09090B" />
-          ) : (
-            <Text style={styles.glassPrimaryButtonText}>Analyze Video</Text>
-          )}
-        </TouchableOpacity>
+          <GlassCard style={styles.glassHeader} interactive>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.brandTitle}>VITRE</Text>
+              <View style={styles.proBadge}>
+                <Text style={styles.proBadgeText}>HD</Text>
+              </View>
+            </View>
+            <Text style={styles.brandSubtitle}>
+              Native yt-dlp Liquid Engine • YouTube, TikTok & Reels
+            </Text>
+          </GlassCard>
 
-        {/* Media Preview Liquid Glass Card */}
-        {mediaInfo && (
-          <View style={styles.glassMediaCard}>
-            {mediaInfo.thumbnail ? (
-              <View style={styles.thumbnailWrapper}>
-                <Image
-                  source={{ uri: mediaInfo.thumbnail }}
-                  style={styles.thumbnail}
-                  resizeMode="cover"
-                />
-                <View style={styles.thumbnailGlassOverlay}>
-                  {mediaInfo.duration > 0 && (
-                    <View style={styles.durationBadge}>
-                      <Text style={styles.durationBadgeText}>
-                        {formatDuration(mediaInfo.duration)}
+          <GlassCard style={styles.glassInputCard}>
+            <TextInput
+              style={styles.textInput}
+              placeholder="Paste media link (YouTube, TikTok, Reels)..."
+              placeholderTextColor="#71717A"
+              value={url}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={styles.glassPasteButton}
+              onPress={handlePaste}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.glassPasteText}>Paste</Text>
+            </TouchableOpacity>
+          </GlassCard>
+
+          <TouchableOpacity
+            style={[styles.glassPrimaryButton, loading && styles.buttonDisabled]}
+            onPress={handleFetch}
+            disabled={loading || downloading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#09090B" />
+            ) : (
+              <Text style={styles.glassPrimaryButtonText}>Analyze Video</Text>
+            )}
+          </TouchableOpacity>
+
+          {mediaInfo && (
+            <GlassCard style={styles.glassMediaCard} interactive>
+              {mediaInfo.thumbnail ? (
+                <View style={styles.thumbnailWrapper}>
+                  <Image
+                    source={{ uri: mediaInfo.thumbnail }}
+                    style={styles.thumbnail}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.thumbnailGlassOverlay}>
+                    {mediaInfo.duration > 0 && (
+                      <View style={styles.durationBadge}>
+                        <Text style={styles.durationBadgeText}>
+                          {formatDuration(mediaInfo.duration)}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.platformBadge}>
+                      <Text style={styles.platformBadgeText}>
+                        {(mediaInfo.extractor || "MEDIA").toUpperCase()}
                       </Text>
                     </View>
-                  )}
-                  <View style={styles.platformBadge}>
-                    <Text style={styles.platformBadgeText}>
-                      {(mediaInfo.extractor || "MEDIA").toUpperCase()}
-                    </Text>
                   </View>
                 </View>
-              </View>
-            ) : null}
+              ) : null}
 
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {mediaInfo.title}
-            </Text>
+              <Text style={styles.cardTitle} numberOfLines={2}>
+                {mediaInfo.title}
+              </Text>
 
-            {/* Quality Presets Selector (Dynamically Filtered to Real Streams) */}
-            <Text style={styles.sectionHeader}>Available Quality Presets</Text>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={availablePresets}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.presetsList}
-              renderItem={({ item }) => {
-                const active = selectedFormat === item.id;
-                return (
-                  <TouchableOpacity
-                    style={[styles.glassChip, active && styles.glassChipActive]}
-                    onPress={() => setSelectedFormat(item.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.glassChipIcon}>{item.icon}</Text>
-                    <Text
-                      style={[styles.glassChipLabel, active && styles.glassChipLabelActive]}
+              <Text style={styles.sectionHeader}>Available Quality Presets</Text>
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={availablePresets}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.presetsList}
+                renderItem={({ item }) => {
+                  const active = selectedFormat === item.id;
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.glassChip,
+                        active && styles.glassChipActive,
+                      ]}
+                      onPress={() => setSelectedFormat(item.id)}
+                      activeOpacity={0.7}
                     >
-                      {item.label}
-                    </Text>
-                    <Text
-                      style={[styles.glassChipSub, active && styles.glassChipSubActive]}
-                    >
-                      {item.sub}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-
-            {/* Raw Streams List (mhtml/storyboards already stripped) */}
-            {mediaInfo.formats && mediaInfo.formats.length > 0 && (
-              <>
-                <Text style={styles.sectionHeaderSub}>Detected Raw Streams</Text>
-                <FlatList
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  data={mediaInfo.formats.slice(0, 8)}
-                  keyExtractor={(item) => item.format_id}
-                  contentContainerStyle={styles.streamsList}
-                  renderItem={({ item }) => {
-                    const active = selectedFormat === item.format_id;
-                    const sizeLabel = formatFileSize(item.filesize);
-                    return (
-                      <TouchableOpacity
-                        style={[styles.glassStreamBadge, active && styles.glassStreamBadgeActive]}
-                        onPress={() => setSelectedFormat(item.format_id)}
-                        activeOpacity={0.7}
+                      <Text style={styles.glassChipIcon}>{item.icon}</Text>
+                      <Text
+                        style={[
+                          styles.glassChipLabel,
+                          active && styles.glassChipLabelActive,
+                        ]}
                       >
-                        <Text
-                          style={[styles.glassStreamText, active && styles.glassStreamTextActive]}
+                        {item.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.glassChipSub,
+                          active && styles.glassChipSubActive,
+                        ]}
+                      >
+                        {item.sub}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+
+              {mediaInfo.formats && mediaInfo.formats.length > 0 && (
+                <>
+                  <Text style={styles.sectionHeaderSub}>
+                    Detected Raw Streams
+                  </Text>
+                  <FlatList
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    data={mediaInfo.formats.slice(0, 8)}
+                    keyExtractor={(item) => item.format_id}
+                    contentContainerStyle={styles.streamsList}
+                    renderItem={({ item }) => {
+                      const active = selectedFormat === item.format_id;
+                      const sizeLabel = formatFileSize(item.filesize);
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.glassStreamBadge,
+                            active && styles.glassStreamBadgeActive,
+                          ]}
+                          onPress={() => setSelectedFormat(item.format_id)}
+                          activeOpacity={0.7}
                         >
-                          {item.resolution} ({item.ext})
-                        </Text>
-                        {sizeLabel ? (
-                          <Text style={styles.glassStreamSize}>{sizeLabel}</Text>
-                        ) : null}
-                      </TouchableOpacity>
-                    );
-                  }}
-                />
-              </>
-            )}
-
-            {/* Liquid Download Progress Bar */}
-            {downloading && (
-              <View style={styles.glassProgressTrack}>
-                <View
-                  style={[styles.glassProgressBar, { width: `${progress.percent}%` }]}
-                />
-                <Text style={styles.glassProgressText}>
-                  {progress.percent}% • {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
-                </Text>
-              </View>
-            )}
-
-            {/* Save to Storage Button */}
-            <TouchableOpacity
-              style={[styles.glassDownloadButton, downloading && styles.buttonDisabled]}
-              onPress={handleDownload}
-              disabled={downloading}
-              activeOpacity={0.8}
-            >
-              {downloading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.glassDownloadButtonText}>
-                  {selectedFormat === "thumbnail"
-                    ? "Save Cover Thumbnail"
-                    : selectedFormat === "audio"
-                    ? "Save Audio Track"
-                    : "Save Video to Storage"}
-                </Text>
+                          <Text
+                            style={[
+                              styles.glassStreamText,
+                              active && styles.glassStreamTextActive,
+                            ]}
+                          >
+                            {item.resolution} ({item.ext})
+                          </Text>
+                          {sizeLabel ? (
+                            <Text style={styles.glassStreamSize}>
+                              {sizeLabel}
+                            </Text>
+                          ) : null}
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                </>
               )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
+
+              {downloading && (
+                <View style={styles.glassProgressTrack}>
+                  <View
+                    style={[
+                      styles.glassProgressBar,
+                      { width: `${progress.percent}%` },
+                    ]}
+                  />
+                  <Text style={styles.glassProgressText}>
+                    {progress.percent}% •{" "}
+                    {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.glassDownloadButton,
+                  downloading && styles.buttonDisabled,
+                ]}
+                onPress={handleDownload}
+                disabled={downloading}
+                activeOpacity={0.8}
+              >
+                {downloading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.glassDownloadButtonText}>
+                    {selectedFormat === "thumbnail"
+                      ? "Save Cover Thumbnail"
+                      : selectedFormat === "audio"
+                      ? "Save Audio Track"
+                      : "Save Video to Storage"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </GlassCard>
+          )}
+        </ScrollView>
+      </LiquidGlassProvider>
     </SafeAreaView>
   );
 }
@@ -416,8 +491,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 40,
   },
-
-  /* Liquid ambient refractive glowing orbs */
   ambientOrbTop: {
     position: "absolute",
     top: -40,
@@ -445,21 +518,12 @@ const styles = StyleSheet.create({
     borderRadius: 120,
     backgroundColor: "rgba(16, 185, 129, 0.08)",
   },
-
-  /* Liquid Glass Header */
   glassHeader: {
-    backgroundColor: "rgba(24, 24, 27, 0.65)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    borderTopColor: "rgba(255, 255, 255, 0.28)",
     borderRadius: 22,
     paddingVertical: 18,
     paddingHorizontal: 18,
     marginBottom: 16,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    overflow: "hidden",
   },
   headerTitleRow: {
     flexDirection: "row",
@@ -493,19 +557,14 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 16,
   },
-
-  /* Liquid Glass Input Card */
   glassInputCard: {
     flexDirection: "row",
-    backgroundColor: "rgba(24, 24, 27, 0.70)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    borderTopColor: "rgba(255, 255, 255, 0.26)",
     borderRadius: 18,
     alignItems: "center",
     paddingHorizontal: 14,
     marginBottom: 12,
-    elevation: 4,
+    overflow: "hidden",
+    height: 54,
   },
   textInput: {
     flex: 1,
@@ -527,8 +586,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-
-  /* Primary Liquid Glass Button */
   glassPrimaryButton: {
     backgroundColor: "rgba(250, 250, 250, 0.95)",
     borderWidth: 1,
@@ -538,10 +595,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
-    elevation: 6,
-    shadowColor: "#FFF",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
   },
   glassPrimaryButtonText: {
     color: "#09090B",
@@ -552,20 +605,11 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.55,
   },
-
-  /* Liquid Glass Media Card */
   glassMediaCard: {
-    backgroundColor: "rgba(24, 24, 27, 0.72)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.12)",
-    borderTopColor: "rgba(255, 255, 255, 0.30)",
     borderRadius: 24,
     padding: 16,
     marginBottom: 20,
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
+    overflow: "hidden",
   },
   thumbnailWrapper: {
     position: "relative",
@@ -623,8 +667,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     lineHeight: 22,
   },
-
-  /* Quality Presets */
   sectionHeader: {
     color: "#E4E4E7",
     fontSize: 13,
@@ -635,37 +677,36 @@ const styles = StyleSheet.create({
   },
   sectionHeaderSub: {
     color: "#A1A1AA",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     marginTop: 14,
     marginBottom: 8,
   },
   presetsList: {
-    paddingVertical: 4,
+    paddingRight: 8,
   },
   glassChip: {
-    backgroundColor: "rgba(39, 39, 42, 0.60)",
+    backgroundColor: "rgba(39, 39, 42, 0.7)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.10)",
-    borderTopColor: "rgba(255, 255, 255, 0.22)",
-    paddingHorizontal: 14,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 14,
     paddingVertical: 10,
-    borderRadius: 16,
+    paddingHorizontal: 14,
     marginRight: 10,
     alignItems: "center",
-    minWidth: 84,
+    minWidth: 78,
   },
   glassChipActive: {
-    backgroundColor: "rgba(59, 130, 246, 0.30)",
+    backgroundColor: "rgba(59, 130, 246, 0.35)",
     borderColor: "#3B82F6",
-    borderTopColor: "rgba(147, 197, 253, 0.85)",
+    borderTopColor: "rgba(147, 197, 253, 0.7)",
   },
   glassChipIcon: {
-    fontSize: 14,
+    fontSize: 18,
     marginBottom: 4,
   },
   glassChipLabel: {
-    color: "#D4D4D8",
+    color: "#E4E4E7",
     fontSize: 13,
     fontWeight: "700",
   },
@@ -673,73 +714,65 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   glassChipSub: {
-    color: "#71717A",
+    color: "#A1A1AA",
     fontSize: 10,
     marginTop: 2,
-    fontWeight: "500",
   },
   glassChipSubActive: {
-    color: "#93C5FD",
+    color: "#BFDBFE",
   },
-
-  /* Stream badges */
   streamsList: {
-    paddingVertical: 2,
+    paddingRight: 8,
   },
   glassStreamBadge: {
-    backgroundColor: "rgba(39, 39, 42, 0.50)",
+    backgroundColor: "rgba(39, 39, 42, 0.65)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     marginRight: 8,
-    alignItems: "center",
   },
   glassStreamBadgeActive: {
-    backgroundColor: "rgba(59, 130, 246, 0.25)",
-    borderColor: "#3B82F6",
+    backgroundColor: "rgba(59, 130, 246, 0.3)",
+    borderColor: "#60A5FA",
   },
   glassStreamText: {
-    color: "#A1A1AA",
-    fontSize: 11,
+    color: "#E4E4E7",
+    fontSize: 12,
     fontWeight: "600",
   },
   glassStreamTextActive: {
     color: "#FFFFFF",
   },
   glassStreamSize: {
-    color: "#71717A",
-    fontSize: 9,
-    marginTop: 1,
+    color: "#A1A1AA",
+    fontSize: 10,
+    marginTop: 2,
   },
-
-  /* Liquid Glass Progress Bar */
   glassProgressTrack: {
     height: 28,
-    backgroundColor: "rgba(39, 39, 42, 0.60)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.10)",
-    borderTopColor: "rgba(255, 255, 255, 0.22)",
+    backgroundColor: "rgba(39, 39, 42, 0.7)",
     borderRadius: 14,
-    overflow: "hidden",
     marginTop: 16,
+    overflow: "hidden",
     justifyContent: "center",
   },
   glassProgressBar: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#3B82F6",
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "rgba(59, 130, 246, 0.55)",
     borderRadius: 14,
   },
   glassProgressText: {
     color: "#FAFAFA",
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "700",
     textAlign: "center",
-    letterSpacing: 0.5,
+    zIndex: 1,
   },
-
-  /* Save to Storage Button */
   glassDownloadButton: {
     backgroundColor: "#2563EB",
     borderWidth: 1,
@@ -750,10 +783,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 18,
-    elevation: 6,
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
   },
   glassDownloadButtonText: {
     color: "#FFFFFF",

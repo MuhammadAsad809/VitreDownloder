@@ -13,10 +13,14 @@ except ImportError:
 
 
 def _clean_url(url: str) -> str:
-    """Strip tracking and session query parameters."""
+    """Normalize and strip tracking / session query parameters."""
     if not url:
         return ""
     clean = url.strip()
+    # Prepend https:// if user pasted without protocol (e.g. youtu.be/...)
+    if not clean.startswith("http://") and not clean.startswith("https://"):
+        clean = "https://" + clean
+    # Strip tracking parameters for short links
     if "instagram.com" in clean or "tiktok.com" in clean or "youtu.be" in clean:
         clean = clean.split("?")[0]
     return clean
@@ -30,7 +34,11 @@ def _ua_for(url: str) -> str:
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
             "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         )
-    return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    # Use iOS mobile User-Agent for YouTube to avoid desktop web "The page needs to be reloaded" challenge
+    return (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+    )
 
 
 def get_media_info(url: str) -> str:
@@ -68,7 +76,8 @@ def get_media_info(url: str) -> str:
         "cachedir": False,
         "extractor_args": {
             "youtube": {
-                "player_client": ["tv", "web", "mweb"],
+                # Use mobile and app clients (ios, android, mweb) which do NOT hit "The page needs to be reloaded"
+                "player_client": ["ios", "android", "mweb"],
             }
         },
         "http_headers": {
@@ -147,7 +156,9 @@ def get_media_info(url: str) -> str:
                 "success": False,
                 "error": "Public content only / try another link",
             })
-        if "sign in to confirm" in err.lower() or "not a bot" in err.lower():
+        if "the page needs to be reloaded" in err.lower():
+            err = "YouTube temporarily challenged this request. Please try again or switch between mobile data/Wi-Fi."
+        elif "sign in to confirm" in err.lower() or "not a bot" in err.lower():
             err = "YouTube bot check. Try mobile data instead of Wi-Fi, or try again later."
         elif "webpage video data" in err.lower():
             err = "TikTok blocked extraction. Try another video or update yt-dlp."
@@ -262,7 +273,7 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
         "progress_hooks": [progress_hook],
         "extractor_args": {
             "youtube": {
-                "player_client": ["tv", "web", "mweb"],
+                "player_client": ["ios", "android", "mweb"],
             }
         },
         "http_headers": {
@@ -298,4 +309,6 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
         err = str(e)
         if is_instagram:
             err = "Public content only / try another link"
+        elif "the page needs to be reloaded" in err.lower():
+            err = "YouTube temporarily challenged this request. Please try again or switch between mobile data/Wi-Fi."
         return json.dumps({"success": False, "error": err})
