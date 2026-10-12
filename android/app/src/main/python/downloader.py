@@ -36,73 +36,6 @@ def _ua_for(url: str) -> str:
     )
 
 
-def _get_ydl_opts(url: str, for_download: bool = False, output_dir: str = "", progress_hook=None):
-    is_youtube = "youtube.com" in url or "youtu.be" in url
-    is_tiktok = any(x in url for x in ("tiktok.com", "vm.tiktok.com", "vt.tiktok.com"))
-    is_instagram = "instagram.com" in url
-
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "cachedir": False,
-        "noplaylist": True,
-        "retries": 5,
-        "fragment_retries": 5,
-        "socket_timeout": 30,
-        "http_headers": {
-            "User-Agent": _ua_for(url),
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "*/*",
-        },
-    }
-
-    if is_youtube:
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["tv", "mweb", "android"],
-            }
-        }
-        if for_download:
-            # High quality 1080p/720p priority format selector
-            opts["format"] = (
-                "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
-                "bestvideo[height<=1080]+bestaudio/"
-                "best[height<=1080]/"
-                "best"
-            )
-            opts["merge_output_format"] = "mp4"
-
-    elif is_tiktok:
-        opts["http_headers"]["User-Agent"] = "abc"
-        if for_download:
-            opts["format"] = "best"
-
-    elif is_instagram:
-        opts["http_headers"].update({
-            "X-IG-App-ID": "936619743392459",
-            "X-ASBD-ID": "129477",
-            "Origin": "https://www.instagram.com",
-            "Referer": "https://www.instagram.com/",
-        })
-        if for_download:
-            opts["format"] = "best"
-
-    else:
-        if for_download:
-            opts["format"] = "best[ext=mp4]/best"
-
-    if for_download:
-        if output_dir:
-            opts["outtmpl"] = os.path.join(output_dir, "%(title).100s.%(ext)s")
-        if progress_hook:
-            opts["progress_hooks"] = [progress_hook]
-    else:
-        opts["skip_download"] = True
-        opts["extract_flat"] = False
-
-    return opts
-
-
 def get_media_info(url: str) -> str:
     """Extract metadata only (no format lock on info extract)."""
     clean_url = _clean_url(url)
@@ -122,60 +55,82 @@ def get_media_info(url: str) -> str:
                     "thumbnail": thumb,
                     "duration": 0,
                     "extractor": "instagram",
-                    "formats": [{
-                        "format_id": "best",
-                        "ext": "mp4",
-                        "resolution": "HD",
-                        "filesize": 0,
-                        "has_video": True,
-                        "has_audio": True,
-                        "quality_note": "Public Reel",
-                    }],
+                    "formats": [
+                        {"format_id": "best", "ext": "mp4", "resolution": "Best Quality", "height": 1080, "filesize": 0, "has_video": True, "has_audio": True, "fps": 30, "quality_note": "Reel (HD)"},
+                        {"format_id": "audio", "ext": "m4a", "resolution": "Audio Only", "height": 0, "filesize": 0, "has_video": False, "has_audio": True, "fps": 0, "quality_note": "Original Audio"},
+                        {"format_id": "thumbnail", "ext": "jpg", "resolution": "Thumbnail Only", "height": 0, "filesize": 0, "has_video": False, "has_audio": False, "fps": 0, "quality_note": "Cover Image"},
+                    ],
                 })
         except Exception:
             pass  # Fallback to yt-dlp below
 
-    opts = _get_ydl_opts(clean_url, for_download=False)
+    ydl_opts = {
+        "quiet": True,
+        "skip_download": True,
+        "noplaylist": True,
+        "cachedir": False,
+        "extractor_args": {
+            "youtube": {"player_client": ["tv", "mweb", "android", "ios"]}
+        },
+        "http_headers": {
+            "User-Agent": _ua_for(clean_url),
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "*/*",
+        },
+    }
+
+    if is_instagram:
+        ydl_opts["http_headers"].update({
+            "X-IG-App-ID": "936619743392459",
+            "X-ASBD-ID": "129477",
+            "Origin": "https://www.instagram.com",
+            "Referer": "https://www.instagram.com/",
+        })
 
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             meta = ydl.extract_info(clean_url, download=False)
             if not meta:
-                return json.dumps({"success": False, "error": "Unable to extract info from this URL."})
+                return json.dumps({"success": False, "error": "No media info found at this URL."})
 
-            formats_list = []
+            formats = []
             for f in meta.get("formats") or []:
                 if not f.get("url") and not f.get("fragments"):
                     continue
                 vcodec = f.get("vcodec") or "none"
                 acodec = f.get("acodec") or "none"
                 height = f.get("height") or 0
-                width = f.get("width") or 0
-                resolution = f.get("resolution") or (f"{width}x{height}" if height else "audio")
+                has_video = vcodec != "none"
+                has_audio = acodec != "none"
+                res_label = f.get("resolution") or (f"{height}p" if height else ("Audio" if has_audio else "unknown"))
 
-                formats_list.append({
-                    "format_id": str(f.get("format_id") or "unknown"),
+                formats.append({
+                    "format_id": str(f.get("format_id")),
                     "ext": f.get("ext") or "mp4",
-                    "resolution": resolution,
+                    "resolution": res_label,
+                    "height": height,
                     "filesize": f.get("filesize") or f.get("filesize_approx") or 0,
-                    "has_video": vcodec != "none",
-                    "has_audio": acodec != "none",
-                    "quality_note": f.get("format_note") or f.get("format") or "",
+                    "has_video": has_video,
+                    "has_audio": has_audio,
+                    "fps": f.get("fps") or 0,
+                    "quality_note": f.get("format_note") or "",
                 })
 
-            formats_list.sort(
-                key=lambda x: (x["has_video"] and x["has_audio"], x.get("filesize") or 0),
-                reverse=True,
-            )
+            # Sort: highest video first, then audio-only
+            formats.sort(key=lambda x: (x["has_video"], x["height"], x["filesize"]), reverse=True)
+
+            # Pick highest quality thumbnail
+            thumbnails = meta.get("thumbnails") or []
+            thumb_url = meta.get("thumbnail") or (thumbnails[-1].get("url") if thumbnails else "")
 
             return json.dumps({
                 "success": True,
                 "id": meta.get("id") or "",
                 "title": meta.get("title") or "Untitled Media",
-                "thumbnail": meta.get("thumbnail") or "",
+                "thumbnail": thumb_url or "",
                 "duration": meta.get("duration") or 0,
                 "extractor": meta.get("extractor") or "",
-                "formats": formats_list,
+                "formats": formats,
             })
     except Exception as e:
         err = str(e)
@@ -226,6 +181,35 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
     is_instagram = "instagram.com" in clean_url
     os.makedirs(output_directory, exist_ok=True)
 
+    # THUMBNAIL ONLY mode
+    if format_id == "thumbnail":
+        ydl_opts = {
+            "quiet": True,
+            "skip_download": True,
+            "writethumbnail": True,
+            "outtmpl": os.path.join(output_directory, "%(title).100s.%(ext)s"),
+            "http_headers": {
+                "User-Agent": _ua_for(clean_url),
+            },
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(clean_url, download=True)
+                title = info.get("title") or "thumbnail"
+                saved_thumb = None
+                for fname in os.listdir(output_directory):
+                    if any(fname.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
+                        saved_thumb = os.path.join(output_directory, fname)
+                        break
+                emit_progress(json.dumps({"status": "finished", "percent": 100.0}))
+                return json.dumps({
+                    "success": True,
+                    "filePath": saved_thumb or output_directory,
+                    "title": f"{title} (Thumbnail)",
+                })
+        except Exception as e:
+            return json.dumps({"success": False, "error": str(e)})
+
     # Try parth-dl for Instagram download if available
     if is_instagram and parth_dl:
         try:
@@ -241,22 +225,55 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
         except Exception:
             pass  # Fallback to yt-dlp
 
-    ydl_opts = _get_ydl_opts(
-        clean_url,
-        for_download=True,
-        output_dir=output_directory,
-        progress_hook=progress_hook,
-    )
+    # Quality presets from UI
+    presets = {
+        "best": "bestvideo*+bestaudio/best",
+        "1080": "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+        "720": "bestvideo[height<=720]+bestaudio/best[height<=720]/best",
+        "480": "bestvideo[height<=480]+bestaudio/best[height<=480]/best",
+        "360": "bestvideo[height<=360]+bestaudio/best[height<=360]/best",
+        "audio": "bestaudio/best",
+    }
 
-    # Allow custom format_id if selected and not default/best
-    if format_id and format_id not in ("best", "unknown", ""):
-        ydl_opts["format"] = f"{format_id}/best[ext=mp4]/best"
+    if format_id in presets:
+        chosen = presets[format_id]
+    elif format_id and format_id not in ("unknown", ""):
+        chosen = f"{format_id}/bestvideo*+bestaudio/best"
+    else:
+        chosen = "bestvideo*+bestaudio/best"
+
+    ydl_opts = {
+        "quiet": True,
+        "noplaylist": True,
+        "cachedir": False,
+        "format": chosen,
+        "outtmpl": os.path.join(output_directory, "%(title).100s.%(ext)s"),
+        "merge_output_format": "mp4",
+        "writethumbnail": True,
+        "writesubtitles": False,
+        "progress_hooks": [progress_hook],
+        "extractor_args": {
+            "youtube": {"player_client": ["tv", "mweb", "android"]}
+        },
+        "http_headers": {
+            "User-Agent": _ua_for(clean_url),
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "*/*",
+        },
+    }
+
+    if is_instagram:
+        ydl_opts["http_headers"].update({
+            "X-IG-App-ID": "936619743392459",
+            "X-ASBD-ID": "129477",
+            "Origin": "https://www.instagram.com",
+            "Referer": "https://www.instagram.com/",
+        })
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(clean_url, download=True)
             path = ydl.prepare_filename(info)
-            # When yt-dlp merges to mp4, prepare_filename might have original ext
             if not os.path.exists(path):
                 base, _ = os.path.splitext(path)
                 if os.path.exists(base + ".mp4"):
@@ -265,6 +282,7 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
                 "success": True,
                 "filePath": path,
                 "title": info.get("title") or "",
+                "thumbnail": info.get("thumbnail") or "",
             })
     except Exception as e:
         err = str(e)
