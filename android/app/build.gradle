@@ -14,6 +14,10 @@ react {
     codegenDir = file("../../node_modules/@react-native/codegen")
     cliFile = file("../../node_modules/react-native/cli.js")
     entryFile = file("../../index.js")
+
+    // Important: force JS bundling even for debug builds
+    // (so APK works without Metro)
+    debuggableVariants = []
 }
 
 def enableHermes = (findProperty('hermesEnabled') ?: "true").toBoolean()
