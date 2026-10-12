@@ -31,6 +31,12 @@ class MainApplication : Application(), ReactApplication {
     override fun onCreate() {
         super.onCreate()
         SoLoader.init(this, false)
+
+        // Initialize Chaquopy Python runtime early in app process
+        if (!com.chaquo.python.Python.isStarted()) {
+            com.chaquo.python.Python.start(com.chaquo.python.android.AndroidPlatform(this))
+        }
+
         if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
             load()
         }
