@@ -3,15 +3,6 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "com.chaquo.python"
 
-react {
-    root = file("../../")
-    reactNativeDir = file("../../node_modules/react-native")
-    cliFile = file("../../node_modules/react-native/cli.js")
-    entryFile = file("../../index.js")
-    bundleInDebug = true
-    bundleInRelease = true
-}
-
 android {
     ndkVersion rootProject.ext.has('ndkVersion') ? rootProject.ext.ndkVersion : "26.1.10909125"
     compileSdkVersion 34
@@ -45,6 +36,15 @@ android {
             minifyEnabled false
         }
     }
+}
+
+react {
+    root = file("../../")
+    reactNativeDir = file("../../node_modules/react-native")
+    cliFile = file("../../node_modules/react-native/cli.js")
+    entryFile = file("../../index.js")
+    bundleInDebug = true
+    bundleInRelease = true
 }
 
 dependencies {
