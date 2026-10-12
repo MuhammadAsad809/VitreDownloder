@@ -32,9 +32,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Node Dependencies
-        run: npm install
-
+      - name: Install Node Dependencies and link to android/
+        run: |
+          npm install
+          ln -sf $PWD/node_modules android/node_modules
 
       - name: Cache Gradle Packages
         uses: actions/cache@v4
