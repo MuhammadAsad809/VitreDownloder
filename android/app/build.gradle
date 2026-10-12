@@ -4,10 +4,10 @@ apply plugin: "com.facebook.react"
 apply plugin: "com.chaquo.python"
 
 react {
-    root = file("../")
-    reactNativeDir = file("../node_modules/react-native")
-    cliFile = file("../node_modules/react-native/cli.js")
-    entryFile = file("../index.js")
+    root = file("../../")
+    reactNativeDir = file("../../node_modules/react-native")
+    cliFile = file("../../node_modules/react-native/cli.js")
+    entryFile = file("../../index.js")
 }
 
 android {
@@ -40,7 +40,6 @@ android {
             // Uses Android Gradle default auto-generated debug keystore
         }
         release {
-            signingConfig signingConfigs.debug
             minifyEnabled false
         }
     }
