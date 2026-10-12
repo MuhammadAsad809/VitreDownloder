@@ -63,6 +63,15 @@ export default function App() {
   const [mediaInfo, setMediaInfo] = useState<MediaMetadata | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<string>("best");
   const [activeCategory, setActiveCategory] = useState("Videos");
+  const [activeScreen, setActiveScreen] = useState<"Home" | "Downloads" | "Settings">("Home");
+  const [wifiOnly, setWifiOnly] = useState(true);
+  const [autoAudio, setAutoAudio] = useState(false);
+  const [organize, setOrganize] = useState(true);
+  const [askDestination, setAskDestination] = useState(false);
+  const [haptics, setHaptics] = useState(true);
+  const [maxConcurrent, setMaxConcurrent] = useState(3);
+  const [glassFrost, setGlassFrost] = useState("Balanced");
+  const [recentDownloads, setRecentDownloads] = useState<Array<{title:string;format:string}>>([]);
   const sheetTranslateY = useRef(new Animated.Value(700)).current;
   const sheetBackdropOpacity = sheetTranslateY.interpolate({
     inputRange: [0, 560],
@@ -167,10 +176,7 @@ export default function App() {
 
   const handleCategoryPress = (category: string) => {
     if (category === "Downloads") {
-      Alert.alert(
-        "Your downloads",
-        "Saved media is stored in your device’s Downloads/Vitre folder."
-      );
+      setActiveScreen("Downloads");
       return;
     }
     setActiveCategory(category);
@@ -284,10 +290,8 @@ export default function App() {
       if (!res || res.success === false) {
         throw new Error(res?.error || "Download failed.");
       }
-      Alert.alert(
-        "Download Completed",
-        `Saved to:\n${res.filePath || "Downloads/Vitre/"}`
-      );
+      setRecentDownloads((items) => [{title: mediaInfo?.title || "Downloaded media", format: selectedFormat.toUpperCase()}, ...items].slice(0, 12));
+      Alert.alert("Download Completed", `Saved to:\n${res.filePath || "Downloads/Vitre/"}`);
     } catch (err: any) {
       Alert.alert("Download Error", err?.message || "Download failed.");
     } finally {
@@ -407,9 +411,9 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#020503" />
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <LinearGradient
-        colors={["#020403", "#04170C", "#061F10", "#020604"]}
+        colors={["#000000", "#030303", "#070707", "#000000"]}
         locations={[0, 0.38, 0.67, 1]}
         start={{ x: 0.12, y: 0 }}
         end={{ x: 0.88, y: 1 }}
@@ -417,6 +421,7 @@ export default function App() {
       />
 
       <LiquidGlassProvider style={StyleSheet.absoluteFill}>
+        {activeScreen === "Home" ? (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -521,7 +526,7 @@ export default function App() {
                 onBlur={() => setUrlFocused(false)}
                 autoCapitalize="none"
                 autoCorrect={false}
-                selectionColor="#76F0A7"
+                selectionColor="#FFFFFF"
               />
               {url.length > 0 && !urlFocused && (
                 <View pointerEvents="none" style={styles.urlPreviewOverlay}>
@@ -587,7 +592,47 @@ export default function App() {
           </TouchableOpacity>
 
         </ScrollView>
+        ) : activeScreen === "Downloads" ? (
+          <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.screenHeader}><Text style={styles.screenTitle}>Your Downloads</Text><Text style={styles.screenSubtitle}>{downloading ? "1 active" : "No active downloads"}  •  {recentDownloads.length} completed</Text></View>
+            <View style={styles.filterRow}><View style={[styles.filterChip,styles.filterChipActive]}><Text style={styles.filterTextActive}>All</Text></View><View style={styles.filterChip}><Text style={styles.filterText}>Downloading</Text></View><View style={styles.filterChip}><Text style={styles.filterText}>Completed</Text></View></View>
+            {downloading ? <View style={styles.glassPanel}><Text style={styles.eyebrow}>IN PROGRESS</Text><Text style={styles.itemTitle}>{mediaInfo?.title || "Media download"}</Text><View style={styles.progressTrack}><View style={[styles.progressFill,{width:`${Math.min(100,progress.percent)}%`}]} /></View><View style={styles.progressMeta}><Text style={styles.mutedText}>{progress.percent}% complete</Text><Text style={styles.mutedText}>{(progress.speed/1024/1024).toFixed(2)} MB/s</Text></View></View> : null}
+            <Text style={styles.sectionLabel}>RECENTLY COMPLETED</Text>
+            {recentDownloads.length ? recentDownloads.map((item,index)=><View key={item.title+index} style={styles.downloadRow}><View style={styles.fileIcon}><Text style={styles.fileIconText}>{item.format==="AUDIO"?"♫":"▶"}</Text></View><View style={styles.downloadCopy}><Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text><Text style={styles.mutedText}>{item.format}  •  Completed</Text></View><Text style={styles.checkMark}>✓</Text></View>) : <View style={styles.emptyCard}><Text style={styles.emptyIcon}>↓</Text><Text style={styles.itemTitle}>No completed downloads yet</Text><Text style={styles.mutedText}>Your downloaded media will appear here.</Text><TouchableOpacity style={styles.secondaryButton} onPress={()=>setActiveScreen("Home")}><Text style={styles.secondaryButtonText}>Find media</Text></TouchableOpacity></View>}
+            <View style={styles.noteCard}><Text style={styles.mutedText}>Files are saved to your device’s Downloads/Vitre folder.</Text></View>
+          </ScrollView>
+        ) : (
+          <ScrollView contentContainerStyle={styles.screenContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.screenHeader}><Text style={styles.screenTitle}>Settings</Text><Text style={styles.screenSubtitle}>Preferences &amp; Storage</Text></View>
+            <View style={styles.storageCard}><Text style={styles.eyebrow}>STORAGE</Text><Text style={styles.storageNumber}>Downloads / Vitre</Text><Text style={styles.mutedText}>Files are saved to your device storage.</Text><View style={styles.storageTrack}><View style={styles.storageFill}/></View><TouchableOpacity onPress={()=>Alert.alert("Clear cache","Vitre does not currently maintain a separate cache to clear.")}><Text style={styles.actionText}>Clear cache</Text></TouchableOpacity></View>
+            <Text style={styles.sectionLabel}>DOWNLOAD PREFERENCES</Text>
+            <View style={styles.settingsGroup}>
+              <TouchableOpacity style={styles.settingRow} onPress={()=>Alert.alert("Default Quality","Choose a quality from the media preview after fetching a link.")}><View style={styles.settingIcon}><Text style={styles.settingIconText}>HD</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Default Quality</Text><Text style={styles.mutedText}>Choose quality in media preview</Text></View><Text style={styles.chevron}>›</Text></TouchableOpacity>
+              <View style={styles.settingRow}><View style={styles.settingIcon}><Text style={styles.settingIconText}>Wi</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Download Over Wi-Fi Only</Text><Text style={styles.mutedText}>Preference only; enforcement not connected</Text></View><TouchableOpacity onPress={()=>setWifiOnly(!wifiOnly)} style={[styles.toggle,wifiOnly&&styles.toggleOn]}><View style={[styles.toggleKnob,wifiOnly&&styles.toggleKnobOn]}/></TouchableOpacity></View>
+              <View style={styles.settingRow}><View style={styles.settingIcon}><Text style={styles.settingIconText}>×{maxConcurrent}</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Max Concurrent Downloads</Text><Text style={styles.mutedText}>Queue limit preference</Text></View><View style={styles.stepper}><TouchableOpacity onPress={()=>setMaxConcurrent(n=>Math.max(1,n-1))}><Text style={styles.stepperText}>−</Text></TouchableOpacity><Text style={styles.stepperValue}>{maxConcurrent}</Text><TouchableOpacity onPress={()=>setMaxConcurrent(n=>Math.min(5,n+1))}><Text style={styles.stepperText}>+</Text></TouchableOpacity></View></View>
+              <View style={styles.settingRow}><View style={styles.settingIcon}><Text style={styles.settingIconText}>♫</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Auto-extract Audio</Text><Text style={styles.mutedText}>Select the audio preset</Text></View><TouchableOpacity onPress={()=>{setAutoAudio(!autoAudio);if(!autoAudio)setSelectedFormat("audio")}} style={[styles.toggle,autoAudio&&styles.toggleOn]}><View style={[styles.toggleKnob,autoAudio&&styles.toggleKnobOn]}/></TouchableOpacity></View>
+            </View>
+            <Text style={styles.sectionLabel}>STORAGE &amp; LOCATION</Text>
+            <View style={styles.settingsGroup}>
+              <TouchableOpacity style={styles.settingRow} onPress={()=>Alert.alert("Save Directory","Current location: Downloads/Vitre. Custom folder selection is not yet connected.")}><View style={styles.settingIcon}><Text style={styles.settingIconText}>▣</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Save Directory</Text><Text style={styles.mutedText}>/Download/Vitre</Text></View><Text style={styles.actionText}>View</Text></TouchableOpacity>
+              <View style={styles.settingRow}><View style={styles.settingIcon}><Text style={styles.settingIconText}>▤</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Organize by Media Type</Text><Text style={styles.mutedText}>Preference; folder routing not connected</Text></View><TouchableOpacity onPress={()=>setOrganize(!organize)} style={[styles.toggle,organize&&styles.toggleOn]}><View style={[styles.toggleKnob,organize&&styles.toggleKnobOn]}/></TouchableOpacity></View>
+              <View style={styles.settingRow}><View style={styles.settingIcon}><Text style={styles.settingIconText}>↗</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Ask Destination</Text><Text style={styles.mutedText}>Prompt for folder per download</Text></View><TouchableOpacity onPress={()=>setAskDestination(!askDestination)} style={[styles.toggle,askDestination&&styles.toggleOn]}><View style={[styles.toggleKnob,askDestination&&styles.toggleKnobOn]}/></TouchableOpacity></View>
+            </View>
+            <Text style={styles.sectionLabel}>APPEARANCE &amp; SYSTEM</Text>
+            <View style={styles.settingsGroup}>
+              <View style={styles.settingRow}><View style={styles.settingIcon}><Text style={styles.settingIconText}>◐</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Theme</Text><Text style={styles.mutedText}>Pure Black OLED</Text></View><Text style={styles.activeLabel}>ACTIVE</Text></View>
+              <View style={styles.frostBlock}><Text style={styles.settingTitle}>Glass Frost Intensity</Text><Text style={styles.mutedText}>Liquid glass surface contrast</Text><View style={styles.frostRow}>{["Minimal","Balanced","Extreme"].map(v=><TouchableOpacity key={v} onPress={()=>setGlassFrost(v)} style={[styles.frostChip,glassFrost===v&&styles.frostChipActive]}><Text style={glassFrost===v?styles.filterTextActive:styles.filterText}>{v}</Text></TouchableOpacity>)}</View></View>
+              <View style={styles.settingRow}><View style={styles.settingIcon}><Text style={styles.settingIconText}>⌁</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Haptic Feedback</Text><Text style={styles.mutedText}>Tactile feedback preference</Text></View><TouchableOpacity onPress={()=>setHaptics(!haptics)} style={[styles.toggle,haptics&&styles.toggleOn]}><View style={[styles.toggleKnob,haptics&&styles.toggleKnobOn]}/></TouchableOpacity></View>
+              <TouchableOpacity style={styles.settingRow} onPress={()=>Alert.alert("Notifications","Download notifications are managed by Android.")}><View style={styles.settingIcon}><Text style={styles.settingIconText}>◉</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Notifications</Text><Text style={styles.mutedText}>Download progress notifications</Text></View><Text style={styles.chevron}>›</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.sectionLabel}>ABOUT VITRE</Text>
+            <View style={styles.settingsGroup}><View style={styles.settingRow}><View style={styles.settingCopy}><Text style={styles.settingTitle}>Version</Text><Text style={styles.mutedText}>Vitre Downloader • Android</Text></View><Text style={styles.stableBadge}>STABLE</Text></View><View style={styles.settingRow}><View style={styles.settingCopy}><Text style={styles.settingTitle}>Network Engine</Text><Text style={styles.mutedText}>yt-dlp • on-device Python bridge</Text></View><Text style={styles.mutedText}>LOCAL</Text></View><TouchableOpacity style={styles.settingRow} onPress={()=>Alert.alert("Vitre","Privacy policy and open-source notices can be added here.")}><Text style={styles.settingTitle}>Privacy Policy &amp; Open Source Licenses</Text><Text style={styles.chevron}>↗</Text></TouchableOpacity></View>
+          </ScrollView>
+        )}
       </LiquidGlassProvider>
+      <View style={styles.bottomNav}>
+        {(["Home","Downloads","Settings"] as const).map(screen=><TouchableOpacity key={screen} onPress={()=>setActiveScreen(screen)} style={[styles.navItem,activeScreen===screen&&styles.navItemActive]}><Text style={[styles.navIcon,activeScreen===screen&&styles.navIconActive]}>{screen==="Home"?"⌂":screen==="Downloads"?"↓":"⚙"}</Text><Text style={[styles.navLabel,activeScreen===screen&&styles.navLabelActive]}>{screen}</Text></TouchableOpacity>)}
+      </View>
       {mediaInfo && (
         <Animated.View
           style={[
@@ -803,8 +848,68 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#020403",
+    backgroundColor: "#000000",
   },
+  screenContent: { paddingHorizontal: 18, paddingTop: 28, paddingBottom: 120 },
+  screenHeader: { marginBottom: 24 },
+  screenTitle: { color: "#FFFFFF", fontSize: 32, fontWeight: "700", letterSpacing: -0.8 },
+  screenSubtitle: { color: "#999999", fontSize: 13, marginTop: 5 },
+  glassPanel: { backgroundColor: "rgba(255,255,255,0.045)", borderWidth: 1, borderColor: "rgba(255,255,255,0.13)", borderTopColor: "rgba(255,255,255,0.28)", borderRadius: 24, padding: 16, marginBottom: 22 },
+  storageCard: { backgroundColor: "rgba(255,255,255,0.045)", borderWidth: 1, borderColor: "rgba(255,255,255,0.13)", borderTopColor: "rgba(255,255,255,0.28)", borderRadius: 24, padding: 16, marginBottom: 28 },
+  eyebrow: { color: "#888888", fontSize: 10, fontWeight: "700", letterSpacing: 1.5, marginBottom: 10 },
+  storageNumber: { color: "#FFFFFF", fontSize: 20, fontWeight: "700", marginVertical: 10 },
+  storageTrack: { height: 6, borderRadius: 4, backgroundColor: "#292929", overflow: "hidden", marginVertical: 14 },
+  storageFill: { height: "100%", width: "28%", backgroundColor: "#E6E6E6", borderRadius: 4 },
+  actionText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
+  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", backgroundColor: "rgba(255,255,255,0.035)" },
+  filterChipActive: { backgroundColor: "rgba(255,255,255,0.14)", borderColor: "rgba(255,255,255,0.32)" },
+  filterText: { color: "#999999", fontSize: 11, fontWeight: "600" },
+  filterTextActive: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  sectionLabel: { color: "#888888", fontSize: 10, fontWeight: "700", letterSpacing: 1.6, marginBottom: 12, marginTop: 4, paddingHorizontal: 3 },
+  itemTitle: { color: "#F5F5F5", fontSize: 14, fontWeight: "600", flexShrink: 1 },
+  mutedText: { color: "#929292", fontSize: 11, lineHeight: 17 },
+  progressTrack: { height: 5, backgroundColor: "#2A2A2A", borderRadius: 4, overflow: "hidden", marginTop: 18 },
+  progressFill: { height: "100%", backgroundColor: "#E8E8E8", borderRadius: 4 },
+  progressMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 9 },
+  downloadRow: { flexDirection: "row", alignItems: "center", padding: 13, marginBottom: 9, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: 1, borderColor: "rgba(255,255,255,0.09)" },
+  fileIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: "#171717", borderWidth: 1, borderColor: "#333333", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  fileIconText: { color: "#FFFFFF", fontSize: 17 },
+  downloadCopy: { flex: 1, gap: 4 },
+  checkMark: { color: "#FFFFFF", fontSize: 18, marginLeft: 8 },
+  emptyCard: { alignItems: "center", paddingHorizontal: 18, paddingVertical: 34, borderRadius: 22, borderWidth: 1, borderColor: "rgba(255,255,255,0.10)", backgroundColor: "rgba(255,255,255,0.025)" },
+  emptyIcon: { color: "#D8D8D8", fontSize: 30, marginBottom: 12 },
+  secondaryButton: { marginTop: 18, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.24)", backgroundColor: "rgba(255,255,255,0.08)" },
+  secondaryButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  noteCard: { padding: 14, marginTop: 18, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.025)" },
+  settingsGroup: { borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", backgroundColor: "rgba(255,255,255,0.035)", marginBottom: 27 },
+  settingRow: { minHeight: 70, paddingHorizontal: 13, paddingVertical: 12, flexDirection: "row", alignItems: "center", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.09)", gap: 11 },
+  settingIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: "#171717", borderWidth: 1, borderColor: "#333333", alignItems: "center", justifyContent: "center" },
+  settingIconText: { color: "#E5E5E5", fontSize: 11, fontWeight: "700" },
+  settingCopy: { flex: 1, gap: 3 },
+  settingTitle: { color: "#F5F5F5", fontSize: 13, fontWeight: "600" },
+  chevron: { color: "#8C8C8C", fontSize: 23 },
+  toggle: { width: 42, height: 24, borderRadius: 13, padding: 3, backgroundColor: "#262626", borderWidth: 1, borderColor: "#444444", justifyContent: "center", alignItems: "flex-start" },
+  toggleOn: { backgroundColor: "#DADADA", borderColor: "#F0F0F0", alignItems: "flex-end" },
+  toggleKnob: { width: 16, height: 16, borderRadius: 9, backgroundColor: "#8C8C8C" },
+  toggleKnobOn: { backgroundColor: "#111111" },
+  stepper: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 16, backgroundColor: "#171717", borderWidth: 1, borderColor: "#383838" },
+  stepperText: { color: "#FFFFFF", fontSize: 18 },
+  stepperValue: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  frostBlock: { padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.09)" },
+  frostRow: { flexDirection: "row", gap: 7, marginTop: 14 },
+  frostChip: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.10)", backgroundColor: "rgba(255,255,255,0.025)" },
+  frostChipActive: { backgroundColor: "rgba(255,255,255,0.13)", borderColor: "rgba(255,255,255,0.35)" },
+  activeLabel: { color: "#FFFFFF", fontSize: 9, fontWeight: "700", letterSpacing: 1 },
+  stableBadge: { color: "#FFFFFF", fontSize: 9, fontWeight: "700", letterSpacing: 1, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, backgroundColor: "#242424", borderWidth: 1, borderColor: "#454545" },
+  bottomNav: { position: "absolute", left: 12, right: 12, bottom: 8, minHeight: 68, borderRadius: 25, paddingHorizontal: 12, paddingVertical: 8, flexDirection: "row", justifyContent: "space-around", alignItems: "center", backgroundColor: "rgba(12,12,12,0.96)", borderWidth: 1, borderColor: "rgba(255,255,255,0.13)", borderTopColor: "rgba(255,255,255,0.25)", elevation: 18 },
+  navItem: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 5, borderRadius: 18, gap: 2 },
+  navItemActive: { backgroundColor: "rgba(255,255,255,0.11)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)" },
+  navIcon: { color: "#858585", fontSize: 19 },
+  navIconActive: { color: "#FFFFFF" },
+  navLabel: { color: "#858585", fontSize: 10, fontWeight: "600" },
+  navLabelActive: { color: "#FFFFFF", fontWeight: "700" },
+
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 18,
@@ -820,10 +925,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     marginBottom: 0,
     overflow: "hidden",
-    backgroundColor: "rgba(2, 8, 4, 0.48)",
+    backgroundColor: "rgba(10,10,10,0.72)",
     borderColor: "rgba(205, 255, 223, 0.19)",
     borderTopColor: "rgba(245,255,248,0.56)",
-    shadowColor: "#00D778",
+    shadowColor: "#FFFFFF",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.16,
     shadowRadius: 24,
@@ -877,11 +982,11 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#6EE7B7",
+    backgroundColor: "#D5D5D5",
     marginRight: 6,
   },
   statusText: {
-    color: "#E9FFF1",
+    color: "#F4F4F4",
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 1,
@@ -924,7 +1029,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(226, 255, 237, 0.18)",
     borderTopColor: "rgba(248,255,250,0.44)",
-    shadowColor: "#00C76B",
+    shadowColor: "#FFFFFF",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.10,
     shadowRadius: 9,
@@ -932,7 +1037,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   categoryChipActive: {
-    backgroundColor: "rgba(15, 112, 57, 0.38)",
+    backgroundColor: "rgba(255,255,255,0.10)",
     borderColor: "rgba(111, 255, 166, 0.62)",
     borderTopColor: "rgba(224,255,233,0.78)",
   },
@@ -943,7 +1048,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(22, 132, 68, 0.22)",
   },
   categoryIcon: {
-    color: "#D9E6DE",
+    color: "#D9D9D9",
     fontSize: 16,
     marginRight: 8,
     fontWeight: "700",
@@ -976,7 +1081,7 @@ const styles = StyleSheet.create({
   },
   proBadge: {
     marginLeft: 10,
-    backgroundColor: "rgba(8, 60, 31, 0.56)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
     borderColor: "rgba(90, 236, 140, 0.56)",
     borderTopColor: "rgba(209,255,222,0.74)",
@@ -985,7 +1090,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   proBadgeText: {
-    color: "#A4FFC1",
+    color: "#E6E6E6",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
@@ -1004,10 +1109,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: "hidden",
     height: 58,
-    backgroundColor: "rgba(1, 7, 4, 0.54)",
+    backgroundColor: "rgba(8,8,8,0.82)",
     borderColor: "rgba(218, 255, 231, 0.19)",
     borderTopColor: "rgba(250,255,251,0.56)",
-    shadowColor: "#00CA70",
+    shadowColor: "#FFFFFF",
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.12,
     shadowRadius: 14,
@@ -1056,7 +1161,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(224,255,235,0.43)",
     borderTopColor: "rgba(255,255,255,0.78)",
-    shadowColor: "#00D778",
+    shadowColor: "#FFFFFF",
     shadowOffset: { width: 0, height: 7 },
     shadowOpacity: 0.30,
     shadowRadius: 18,
@@ -1075,12 +1180,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
   loadingCapsule: {
-    backgroundColor: "rgba(6, 58, 29, 0.62)",
+    backgroundColor: "rgba(255,255,255,0.10)",
     borderColor: "rgba(148,255,185,0.62)",
     borderTopColor: "rgba(255,255,255,0.82)",
   },
   loadingCapsuleOverlay: {
-    backgroundColor: "rgba(4, 42, 19, 0.58)",
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
   loadingCapsuleContent: {
     position: "absolute",
@@ -1120,7 +1225,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(207,255,224,0.24)",
     borderTopColor: "rgba(250,255,251,0.72)",
-    shadowColor: "#00D778",
+    shadowColor: "#FFFFFF",
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.30,
     shadowRadius: 32,
@@ -1134,7 +1239,7 @@ const styles = StyleSheet.create({
     borderRadius: 150,
     top: "16%",
     right: -130,
-    backgroundColor: "rgba(0, 200, 96, 0.14)",
+    backgroundColor: "rgba(255,255,255,0.025)",
   },
   previewAuraMint: {
     position: "absolute",
@@ -1143,7 +1248,7 @@ const styles = StyleSheet.create({
     borderRadius: 130,
     bottom: "12%",
     left: -130,
-    backgroundColor: "rgba(76, 255, 141, 0.08)",
+    backgroundColor: "rgba(255,255,255,0.018)",
   },
   previewSheetTint: {
     ...StyleSheet.absoluteFillObject,
@@ -1170,7 +1275,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   previewEyebrow: {
-    color: "#87F3AE",
+    color: "#E4E4E4",
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 1.8,
@@ -1244,10 +1349,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 0,
     overflow: "hidden",
-    backgroundColor: "rgba(2, 8, 4, 0.48)",
+    backgroundColor: "rgba(10,10,10,0.72)",
     borderColor: "rgba(205, 255, 223, 0.19)",
     borderTopColor: "rgba(245,255,248,0.56)",
-    shadowColor: "#00D778",
+    shadowColor: "#FFFFFF",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.16,
     shadowRadius: 24,
@@ -1289,7 +1394,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   platformBadge: {
-    backgroundColor: "rgba(5, 65, 29, 0.78)",
+    backgroundColor: "rgba(255,255,255,0.10)",
     borderWidth: 1,
     borderColor: "rgba(119,255,164,0.62)",
     borderTopColor: "rgba(244,255,248,0.86)",
@@ -1298,7 +1403,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   platformBadgeText: {
-    color: "#C7FFD8",
+    color: "#F0F0F0",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
@@ -1329,7 +1434,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   glassChip: {
-    backgroundColor: "rgba(3, 12, 6, 0.58)",
+    backgroundColor: "rgba(18,18,18,0.78)",
     borderWidth: 1,
     borderColor: "rgba(224,255,235,0.18)",
     borderTopColor: "rgba(250,255,251,0.48)",
@@ -1341,7 +1446,7 @@ const styles = StyleSheet.create({
     minWidth: 78,
   },
   glassChipActive: {
-    backgroundColor: "rgba(12, 103, 48, 0.38)",
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderColor: "rgba(131,255,172,0.68)",
     borderTopColor: "rgba(250,255,251,0.86)",
   },
@@ -1363,13 +1468,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   glassChipSubActive: {
-    color: "#B9FFD0",
+    color: "#E6E6E6",
   },
   streamsList: {
     paddingRight: 8,
   },
   glassStreamBadge: {
-    backgroundColor: "rgba(3, 12, 6, 0.56)",
+    backgroundColor: "rgba(18,18,18,0.78)",
     borderWidth: 1,
     borderColor: "rgba(224,255,235,0.16)",
     borderTopColor: "rgba(250,255,251,0.44)",
@@ -1379,7 +1484,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   glassStreamBadgeActive: {
-    backgroundColor: "rgba(12, 103, 48, 0.34)",
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderColor: "rgba(131,255,172,0.62)",
     borderTopColor: "rgba(250,255,251,0.84)",
   },
@@ -1412,7 +1517,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "rgba(33, 210, 112, 0.62)",
+    backgroundColor: "rgba(255,255,255,0.28)",
     borderRadius: 14,
   },
   glassProgressText: {
@@ -1423,11 +1528,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   glassDownloadButton: {
-    backgroundColor: "rgba(5, 57, 27, 0.72)",
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderWidth: 1,
     borderColor: "rgba(132,255,175,0.66)",
     borderTopColor: "rgba(255,255,255,0.86)",
-    shadowColor: "#00D778",
+    shadowColor: "#FFFFFF",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
     shadowRadius: 14,
