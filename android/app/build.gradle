@@ -7,8 +7,7 @@ react {
     root = file("../")
     reactNativeDir = file("../node_modules/react-native")
     cliFile = file("../node_modules/react-native/cli.js")
-    bundleInDebug = true
-    bundleInRelease = true
+    entryFile = file("../index.js")
 }
 
 android {
