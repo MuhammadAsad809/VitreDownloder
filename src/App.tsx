@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { BlurView } from "@react-native-community/blur";
+import LinearGradient from "react-native-linear-gradient";
 import {
   SafeAreaView,
   ScrollView,
@@ -56,6 +57,7 @@ interface MediaMetadata {
 
 export default function App() {
   const [url, setUrl] = useState("");
+  const [urlFocused, setUrlFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [mediaInfo, setMediaInfo] = useState<MediaMetadata | null>(null);
@@ -74,6 +76,10 @@ export default function App() {
     { name: "Photos", icon: "▧" },
     { name: "Downloads", icon: "↓" },
   ];
+  const compactUrl = useMemo(
+    () => (url.length > 28 ? `${url.slice(0, 16)}…${url.slice(-8)}` : url),
+    [url]
+  );
   const [progress, setProgress] = useState<{ percent: number; speed: number }>({
     percent: 0,
     speed: 0,
@@ -351,10 +357,10 @@ export default function App() {
     <View
       style={[
         {
-          backgroundColor: "rgba(192, 211, 255, 0.085)",
+          backgroundColor: "rgba(2, 7, 4, 0.48)",
           borderWidth: 1,
-          borderColor: "rgba(226, 236, 255, 0.20)",
-          borderTopColor: "rgba(255,255,255,0.52)",
+          borderColor: "rgba(211, 255, 227, 0.18)",
+          borderTopColor: "rgba(242,255,247,0.52)",
         },
         style,
       ]}
@@ -363,7 +369,7 @@ export default function App() {
         style={StyleSheet.absoluteFill}
         blurType="dark"
         blurAmount={24}
-        overlayColor="rgba(106, 137, 190, 0.10)"
+        overlayColor="rgba(1, 8, 4, 0.34)"
       />
       <View pointerEvents="none" style={styles.glassTint} />
       {children}
@@ -401,11 +407,14 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#09090B" />
-      <View style={styles.ambientOrbTop} pointerEvents="none" />
-      <View style={styles.ambientOrbCenter} pointerEvents="none" />
-      <View style={styles.ambientOrbBottom} pointerEvents="none" />
-      <View style={styles.ambientHighlight} pointerEvents="none" />
+      <StatusBar barStyle="light-content" backgroundColor="#020503" />
+      <LinearGradient
+        colors={["#020403", "#04170C", "#061F10", "#020604"]}
+        locations={[0, 0.38, 0.67, 1]}
+        start={{ x: 0.12, y: 0 }}
+        end={{ x: 0.88, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
 
       <LiquidGlassProvider style={StyleSheet.absoluteFill}>
         <ScrollView
@@ -466,7 +475,7 @@ export default function App() {
                     style={StyleSheet.absoluteFill}
                     blurType="dark"
                     blurAmount={16}
-                    overlayColor="rgba(91, 120, 178, 0.08)"
+                    overlayColor="rgba(0, 8, 3, 0.28)"
                   />
                   <View
                     pointerEvents="none"
@@ -498,15 +507,30 @@ export default function App() {
           </ScrollView>
 
           <GlassCard style={styles.glassInputCard}>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Paste a link to get started"
-              placeholderTextColor="#71717A"
-              value={url}
-              onChangeText={setUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <View style={styles.urlField}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  url.length > 0 && !urlFocused && styles.textInputHidden,
+                ]}
+                placeholder="Paste a link to get started"
+                placeholderTextColor="#AAB6AE"
+                value={url}
+                onChangeText={setUrl}
+                onFocus={() => setUrlFocused(true)}
+                onBlur={() => setUrlFocused(false)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                selectionColor="#76F0A7"
+              />
+              {url.length > 0 && !urlFocused && (
+                <View pointerEvents="none" style={styles.urlPreviewOverlay}>
+                  <Text style={styles.urlPreview} numberOfLines={1}>
+                    {compactUrl}
+                  </Text>
+                </View>
+              )}
+            </View>
             <TouchableOpacity
               style={styles.glassPasteButton}
               onPress={handlePaste}
@@ -527,7 +551,7 @@ export default function App() {
               style={StyleSheet.absoluteFill}
               blurType="dark"
               blurAmount={18}
-              overlayColor="rgba(110, 146, 210, 0.22)"
+              overlayColor="rgba(0, 8, 3, 0.38)"
             />
             <Animated.View
               pointerEvents="none"
@@ -558,7 +582,7 @@ export default function App() {
                 },
               ]}
             >
-              Find your media  →
+              Find your media
             </Animated.Text>
           </TouchableOpacity>
 
@@ -576,10 +600,10 @@ export default function App() {
               style={StyleSheet.absoluteFill}
               blurType="dark"
               blurAmount={18}
-              overlayColor="rgba(6, 9, 18, 0.72)"
+              overlayColor="rgba(0, 5, 2, 0.78)"
             />
-            <View style={styles.previewAuraBlue} pointerEvents="none" />
-            <View style={styles.previewAuraViolet} pointerEvents="none" />
+            <View style={styles.previewAuraGreen} pointerEvents="none" />
+            <View style={styles.previewAuraMint} pointerEvents="none" />
             <Animated.View
               style={[
                 styles.previewSheet,
@@ -591,7 +615,7 @@ export default function App() {
                 style={StyleSheet.absoluteFill}
                 blurType="dark"
                 blurAmount={28}
-                overlayColor="rgba(22, 31, 52, 0.34)"
+                overlayColor="rgba(1, 8, 4, 0.46)"
               />
               <View pointerEvents="none" style={styles.previewSheetTint} />
               <View
@@ -779,52 +803,16 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#080B12",
+    backgroundColor: "#020403",
   },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 44,
   },
-  ambientOrbTop: {
-    position: "absolute",
-    top: -40,
-    right: -40,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(72, 121, 255, 0.20)",
-  },
-  ambientOrbCenter: {
-    position: "absolute",
-    top: 260,
-    left: -60,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: "rgba(142, 91, 255, 0.13)",
-  },
-  ambientOrbBottom: {
-    position: "absolute",
-    bottom: 40,
-    right: -50,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: "rgba(16, 185, 129, 0.10)",
-  },
-  ambientHighlight: {
-    position: "absolute",
-    top: 170,
-    right: -100,
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    backgroundColor: "rgba(56, 189, 248, 0.07)",
-  },
   glassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(134, 169, 235, 0.075)",
+    backgroundColor: "rgba(1, 12, 6, 0.26)",
   },
   glassHeader: {
     borderRadius: 28,
@@ -832,10 +820,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     marginBottom: 0,
     overflow: "hidden",
-    backgroundColor: "rgba(165, 196, 255, 0.10)",
-    borderColor: "rgba(222, 235, 255, 0.22)",
-    borderTopColor: "rgba(255,255,255,0.58)",
-    shadowColor: "#8AB4FF",
+    backgroundColor: "rgba(2, 8, 4, 0.48)",
+    borderColor: "rgba(205, 255, 223, 0.19)",
+    borderTopColor: "rgba(245,255,248,0.56)",
+    shadowColor: "#00D778",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.16,
     shadowRadius: 24,
@@ -851,10 +839,10 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(0, 8, 4, 0.56)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.28)",
-    borderTopColor: "rgba(255,255,255,0.48)",
+    borderColor: "rgba(221,255,234,0.24)",
+    borderTopColor: "rgba(255,255,255,0.58)",
   },
   brandMarkText: {
     color: "#FFFFFF",
@@ -881,9 +869,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: "rgba(0, 8, 4, 0.50)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(193,255,217,0.24)",
   },
   statusDot: {
     width: 6,
@@ -893,7 +881,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   statusText: {
-    color: "#D1FAE5",
+    color: "#E9FFF1",
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 1,
@@ -913,7 +901,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   categoryHint: {
-    color: "rgba(208,220,245,0.52)",
+    color: "#B3C2B8",
     fontSize: 11,
   },
   categoryScroller: {
@@ -932,11 +920,11 @@ const styles = StyleSheet.create({
     height: 43,
     borderRadius: 23,
     marginRight: 9,
-    backgroundColor: "rgba(220, 232, 255, 0.075)",
+    backgroundColor: "rgba(1, 7, 4, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(235, 243, 255, 0.17)",
-    borderTopColor: "rgba(255,255,255,0.38)",
-    shadowColor: "#88AFFF",
+    borderColor: "rgba(226, 255, 237, 0.18)",
+    borderTopColor: "rgba(248,255,250,0.44)",
+    shadowColor: "#00C76B",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.10,
     shadowRadius: 9,
@@ -944,18 +932,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   categoryChipActive: {
-    backgroundColor: "rgba(124, 164, 255, 0.25)",
-    borderColor: "rgba(195, 219, 255, 0.64)",
-    borderTopColor: "rgba(255,255,255,0.82)",
+    backgroundColor: "rgba(15, 112, 57, 0.38)",
+    borderColor: "rgba(111, 255, 166, 0.62)",
+    borderTopColor: "rgba(224,255,233,0.78)",
   },
   categoryChipTint: {
-    backgroundColor: "rgba(173, 201, 255, 0.06)",
+    backgroundColor: "rgba(1, 10, 5, 0.34)",
   },
   categoryChipTintActive: {
-    backgroundColor: "rgba(115, 158, 255, 0.20)",
+    backgroundColor: "rgba(22, 132, 68, 0.22)",
   },
   categoryIcon: {
-    color: "rgba(226,236,255,0.72)",
+    color: "#D9E6DE",
     fontSize: 16,
     marginRight: 8,
     fontWeight: "700",
@@ -964,7 +952,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   categoryLabel: {
-    color: "rgba(229,237,252,0.72)",
+    color: "#E1EAE4",
     fontSize: 12,
     fontWeight: "600",
   },
@@ -981,30 +969,30 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   heroSubtitle: {
-    color: "rgba(230,237,249,0.70)",
+    color: "#C1CCC4",
     fontSize: 13,
     lineHeight: 19,
     marginTop: 6,
   },
   proBadge: {
     marginLeft: 10,
-    backgroundColor: "rgba(59, 130, 246, 0.25)",
+    backgroundColor: "rgba(8, 60, 31, 0.56)",
     borderWidth: 1,
-    borderColor: "#3B82F6",
-    borderTopColor: "rgba(147, 197, 253, 0.8)",
+    borderColor: "rgba(90, 236, 140, 0.56)",
+    borderTopColor: "rgba(209,255,222,0.74)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
   },
   proBadgeText: {
-    color: "#60A5FA",
+    color: "#A4FFC1",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
   },
   brandSubtitle: {
     fontSize: 12,
-    color: "#A1A1AA",
+    color: "#B5C1B9",
     marginTop: 2,
     lineHeight: 16,
   },
@@ -1016,41 +1004,59 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     overflow: "hidden",
     height: 58,
-    backgroundColor: "rgba(178, 205, 255, 0.10)",
-    borderColor: "rgba(227, 237, 255, 0.23)",
-    borderTopColor: "rgba(255,255,255,0.58)",
-    shadowColor: "#88AFFF",
+    backgroundColor: "rgba(1, 7, 4, 0.54)",
+    borderColor: "rgba(218, 255, 231, 0.19)",
+    borderTopColor: "rgba(250,255,251,0.56)",
+    shadowColor: "#00CA70",
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.12,
     shadowRadius: 14,
     elevation: 5,
   },
+  urlField: {
+    flex: 1,
+    height: 50,
+    justifyContent: "center",
+  },
   textInput: {
     flex: 1,
     height: 50,
-    color: "#FAFAFA",
+    color: "#F5FAF6",
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  textInputHidden: {
+    color: "transparent",
+  },
+  urlPreviewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+  },
+  urlPreview: {
+    color: "#F5FAF6",
     fontSize: 14,
+    includeFontPadding: false,
   },
   glassPasteButton: {
-    backgroundColor: "rgba(224, 234, 255, 0.14)",
+    backgroundColor: "rgba(2, 10, 5, 0.62)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.24)",
-    borderTopColor: "rgba(255,255,255,0.58)",
+    borderColor: "rgba(221,255,235,0.22)",
+    borderTopColor: "rgba(250,255,251,0.60)",
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 12,
   },
   glassPasteText: {
-    color: "#FAFAFA",
+    color: "#F3FAF5",
     fontSize: 12,
     fontWeight: "700",
   },
   glassPrimaryButton: {
-    backgroundColor: "rgba(174, 204, 255, 0.28)",
+    backgroundColor: "rgba(1, 8, 4, 0.66)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.74)",
-    borderTopColor: "#FFFFFF",
-    shadowColor: "#A9C9FF",
+    borderColor: "rgba(224,255,235,0.43)",
+    borderTopColor: "rgba(255,255,255,0.78)",
+    shadowColor: "#00D778",
     shadowOffset: { width: 0, height: 7 },
     shadowOpacity: 0.30,
     shadowRadius: 18,
@@ -1063,18 +1069,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   glassPrimaryButtonText: {
-    color: "#F7FAFF",
+    color: "#F5FFF8",
     fontSize: 15,
     fontWeight: "800",
     letterSpacing: 0.1,
   },
   loadingCapsule: {
-    backgroundColor: "rgba(112, 154, 241, 0.36)",
-    borderColor: "rgba(211,228,255,0.78)",
-    borderTopColor: "#FFFFFF",
+    backgroundColor: "rgba(6, 58, 29, 0.62)",
+    borderColor: "rgba(148,255,185,0.62)",
+    borderTopColor: "rgba(255,255,255,0.82)",
   },
   loadingCapsuleOverlay: {
-    backgroundColor: "rgba(67, 109, 203, 0.52)",
+    backgroundColor: "rgba(4, 42, 19, 0.58)",
   },
   loadingCapsuleContent: {
     position: "absolute",
@@ -1100,7 +1106,7 @@ const styles = StyleSheet.create({
     flex: 1,
     zIndex: 1000,
     elevation: 30,
-    backgroundColor: "rgba(3, 6, 14, 0.70)",
+    backgroundColor: "rgba(0, 4, 2, 0.78)",
     justifyContent: "center",
     paddingHorizontal: 18,
     paddingVertical: 34,
@@ -1110,38 +1116,38 @@ const styles = StyleSheet.create({
     maxHeight: "90%",
     borderRadius: 30,
     padding: 14,
-    backgroundColor: "rgba(22, 31, 52, 0.42)",
+    backgroundColor: "rgba(1, 7, 4, 0.48)",
     borderWidth: 1,
-    borderColor: "rgba(225, 237, 255, 0.27)",
-    borderTopColor: "rgba(255,255,255,0.70)",
-    shadowColor: "#789BFF",
+    borderColor: "rgba(207,255,224,0.24)",
+    borderTopColor: "rgba(250,255,251,0.72)",
+    shadowColor: "#00D778",
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.30,
     shadowRadius: 32,
     elevation: 20,
     overflow: "hidden",
   },
-  previewAuraBlue: {
+  previewAuraGreen: {
     position: "absolute",
     width: 300,
     height: 300,
     borderRadius: 150,
     top: "16%",
     right: -130,
-    backgroundColor: "rgba(82, 141, 255, 0.19)",
+    backgroundColor: "rgba(0, 200, 96, 0.14)",
   },
-  previewAuraViolet: {
+  previewAuraMint: {
     position: "absolute",
     width: 260,
     height: 260,
     borderRadius: 130,
     bottom: "12%",
     left: -130,
-    backgroundColor: "rgba(155, 103, 255, 0.14)",
+    backgroundColor: "rgba(76, 255, 141, 0.08)",
   },
   previewSheetTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(119, 153, 219, 0.08)",
+    backgroundColor: "rgba(0, 14, 6, 0.18)",
   },
   sheetDragArea: {
     height: 34,
@@ -1164,7 +1170,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   previewEyebrow: {
-    color: "#9FB9F8",
+    color: "#87F3AE",
     fontSize: 9,
     fontWeight: "800",
     letterSpacing: 1.8,
@@ -1215,7 +1221,7 @@ const styles = StyleSheet.create({
     left: 20,
     width: "34%",
     height: 1,
-    backgroundColor: "rgba(164, 207, 255, 0.82)",
+    backgroundColor: "rgba(106, 255, 157, 0.78)",
   },
   glassChromaticEdgeWarm: {
     position: "absolute",
@@ -1223,7 +1229,7 @@ const styles = StyleSheet.create({
     left: "54%",
     width: "22%",
     height: 1,
-    backgroundColor: "rgba(255, 182, 211, 0.52)",
+    backgroundColor: "rgba(222, 255, 234, 0.46)",
   },
   glassSideReflection: {
     position: "absolute",
@@ -1231,17 +1237,17 @@ const styles = StyleSheet.create({
     right: 0,
     width: 1,
     bottom: 14,
-    backgroundColor: "rgba(206,225,255,0.20)",
+    backgroundColor: "rgba(105,255,158,0.22)",
   },
   glassMediaCard: {
     borderRadius: 26,
     padding: 16,
     marginBottom: 0,
     overflow: "hidden",
-    backgroundColor: "rgba(165, 196, 255, 0.10)",
-    borderColor: "rgba(222, 235, 255, 0.22)",
-    borderTopColor: "rgba(255,255,255,0.58)",
-    shadowColor: "#8AB4FF",
+    backgroundColor: "rgba(2, 8, 4, 0.48)",
+    borderColor: "rgba(205, 255, 223, 0.19)",
+    borderTopColor: "rgba(245,255,248,0.56)",
+    shadowColor: "#00D778",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.16,
     shadowRadius: 24,
@@ -1269,9 +1275,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   durationBadge: {
-    backgroundColor: "rgba(11, 18, 34, 0.62)",
+    backgroundColor: "rgba(1, 5, 3, 0.76)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
+    borderColor: "rgba(235,255,241,0.24)",
     borderTopColor: "rgba(255,255,255,0.60)",
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -1283,16 +1289,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   platformBadge: {
-    backgroundColor: "rgba(95, 156, 255, 0.32)",
+    backgroundColor: "rgba(5, 65, 29, 0.78)",
     borderWidth: 1,
-    borderColor: "rgba(170,205,255,0.65)",
-    borderTopColor: "rgba(255,255,255,0.85)",
+    borderColor: "rgba(119,255,164,0.62)",
+    borderTopColor: "rgba(244,255,248,0.86)",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
   platformBadgeText: {
-    color: "#93C5FD",
+    color: "#C7FFD8",
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
@@ -1305,7 +1311,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   sectionHeader: {
-    color: "#E4E4E7",
+    color: "#F0F7F2",
     fontSize: 13,
     fontWeight: "700",
     marginTop: 16,
@@ -1313,7 +1319,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   sectionHeaderSub: {
-    color: "#A1A1AA",
+    color: "#C0CCC4",
     fontSize: 12,
     fontWeight: "600",
     marginTop: 14,
@@ -1323,10 +1329,10 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   glassChip: {
-    backgroundColor: "rgba(207, 224, 255, 0.10)",
+    backgroundColor: "rgba(3, 12, 6, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(238, 245, 255, 0.21)",
-    borderTopColor: "rgba(255,255,255,0.46)",
+    borderColor: "rgba(224,255,235,0.18)",
+    borderTopColor: "rgba(250,255,251,0.48)",
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -1335,16 +1341,16 @@ const styles = StyleSheet.create({
     minWidth: 78,
   },
   glassChipActive: {
-    backgroundColor: "rgba(112, 166, 255, 0.27)",
-    borderColor: "rgba(185, 214, 255, 0.70)",
-    borderTopColor: "rgba(255,255,255,0.86)",
+    backgroundColor: "rgba(12, 103, 48, 0.38)",
+    borderColor: "rgba(131,255,172,0.68)",
+    borderTopColor: "rgba(250,255,251,0.86)",
   },
   glassChipIcon: {
     fontSize: 18,
     marginBottom: 4,
   },
   glassChipLabel: {
-    color: "#E4E4E7",
+    color: "#F0F7F2",
     fontSize: 13,
     fontWeight: "700",
   },
@@ -1352,33 +1358,33 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   glassChipSub: {
-    color: "#A1A1AA",
+    color: "#BBC8BF",
     fontSize: 10,
     marginTop: 2,
   },
   glassChipSubActive: {
-    color: "#BFDBFE",
+    color: "#B9FFD0",
   },
   streamsList: {
     paddingRight: 8,
   },
   glassStreamBadge: {
-    backgroundColor: "rgba(207, 224, 255, 0.085)",
+    backgroundColor: "rgba(3, 12, 6, 0.56)",
     borderWidth: 1,
-    borderColor: "rgba(238, 245, 255, 0.18)",
-    borderTopColor: "rgba(255,255,255,0.42)",
+    borderColor: "rgba(224,255,235,0.16)",
+    borderTopColor: "rgba(250,255,251,0.44)",
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginRight: 8,
   },
   glassStreamBadgeActive: {
-    backgroundColor: "rgba(112, 166, 255, 0.24)",
-    borderColor: "rgba(185, 214, 255, 0.65)",
-    borderTopColor: "rgba(255,255,255,0.78)",
+    backgroundColor: "rgba(12, 103, 48, 0.34)",
+    borderColor: "rgba(131,255,172,0.62)",
+    borderTopColor: "rgba(250,255,251,0.84)",
   },
   glassStreamText: {
-    color: "#E4E4E7",
+    color: "#EAF2EC",
     fontSize: 12,
     fontWeight: "600",
   },
@@ -1386,16 +1392,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   glassStreamSize: {
-    color: "#A1A1AA",
+    color: "#BBC8BF",
     fontSize: 10,
     marginTop: 2,
   },
   glassProgressTrack: {
     height: 28,
-    backgroundColor: "rgba(217, 231, 255, 0.09)",
+    backgroundColor: "rgba(4, 14, 7, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.17)",
-    borderTopColor: "rgba(255,255,255,0.40)",
+    borderColor: "rgba(224,255,235,0.17)",
+    borderTopColor: "rgba(250,255,251,0.44)",
     borderRadius: 14,
     marginTop: 16,
     overflow: "hidden",
@@ -1406,7 +1412,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: "rgba(122, 169, 255, 0.58)",
+    backgroundColor: "rgba(33, 210, 112, 0.62)",
     borderRadius: 14,
   },
   glassProgressText: {
@@ -1417,11 +1423,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   glassDownloadButton: {
-    backgroundColor: "rgba(87, 138, 255, 0.66)",
+    backgroundColor: "rgba(5, 57, 27, 0.72)",
     borderWidth: 1,
-    borderColor: "rgba(191, 216, 255, 0.72)",
-    borderTopColor: "rgba(255, 255, 255, 0.90)",
-    shadowColor: "#6EA2FF",
+    borderColor: "rgba(132,255,175,0.66)",
+    borderTopColor: "rgba(255,255,255,0.86)",
+    shadowColor: "#00D778",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
     shadowRadius: 14,

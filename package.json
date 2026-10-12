@@ -10,7 +10,8 @@
     "@react-native-community/blur": "^4.4.1",
     "liquid-glass-kit": "file:./liquid-glass-kit",
     "react": "18.2.0",
-    "react-native": "0.73.6"
+    "react-native": "0.73.6",
+    "react-native-linear-gradient": "^2.8.3"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
