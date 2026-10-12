@@ -17,6 +17,7 @@ import {
   PermissionsAndroid,
   Platform,
   StatusBar,
+  Modal,
 } from "react-native";
 import {
   LiquidGlassProvider,
@@ -274,6 +275,7 @@ export default function App() {
       <View style={styles.ambientOrbTop} pointerEvents="none" />
       <View style={styles.ambientOrbCenter} pointerEvents="none" />
       <View style={styles.ambientOrbBottom} pointerEvents="none" />
+      <View style={styles.ambientHighlight} pointerEvents="none" />
 
       <LiquidGlassProvider style={StyleSheet.absoluteFill}>
         <ScrollView
@@ -282,20 +284,33 @@ export default function App() {
         >
           <GlassCard style={styles.glassHeader} interactive>
             <View style={styles.headerTitleRow}>
-              <Text style={styles.brandTitle}>VITRE</Text>
-              <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>HD</Text>
+              <View style={styles.brandMark}>
+                <Text style={styles.brandMarkText}>V</Text>
+              </View>
+              <View style={styles.brandCopy}>
+                <View style={styles.brandNameRow}>
+                  <Text style={styles.brandTitle}>Vitre</Text>
+                  <View style={styles.proBadge}>
+                    <Text style={styles.proBadgeText}>HD</Text>
+                  </View>
+                </View>
+                <Text style={styles.brandSubtitle}>A little more clarity.</Text>
+              </View>
+              <View style={styles.statusPill}>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusText}>READY</Text>
               </View>
             </View>
-            <Text style={styles.brandSubtitle}>
-              Native yt-dlp Liquid Engine • YouTube, TikTok & Reels
+            <Text style={styles.heroTitle}>Save what moves you.</Text>
+            <Text style={styles.heroSubtitle}>
+              Video, audio, and moments worth keeping — all in one place.
             </Text>
           </GlassCard>
 
           <GlassCard style={styles.glassInputCard}>
             <TextInput
               style={styles.textInput}
-              placeholder="Paste media link (YouTube, TikTok, Reels)..."
+              placeholder="Paste a link to get started"
               placeholderTextColor="#71717A"
               value={url}
               onChangeText={setUrl}
@@ -320,163 +335,195 @@ export default function App() {
             {loading ? (
               <ActivityIndicator color="#09090B" />
             ) : (
-              <Text style={styles.glassPrimaryButtonText}>Analyze Video</Text>
+              <Text style={styles.glassPrimaryButtonText}>Find your media  →</Text>
             )}
           </TouchableOpacity>
 
-          {mediaInfo && (
-            <GlassCard style={styles.glassMediaCard} interactive>
-              {mediaInfo.thumbnail ? (
-                <View style={styles.thumbnailWrapper}>
-                  <Image
-                    source={{ uri: mediaInfo.thumbnail }}
-                    style={styles.thumbnail}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.thumbnailGlassOverlay}>
-                    {mediaInfo.duration > 0 && (
-                      <View style={styles.durationBadge}>
-                        <Text style={styles.durationBadgeText}>
-                          {formatDuration(mediaInfo.duration)}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.platformBadge}>
-                      <Text style={styles.platformBadgeText}>
-                        {(mediaInfo.extractor || "MEDIA").toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
+        </ScrollView>
+      </LiquidGlassProvider>
+      {mediaInfo && (
+        <Modal
+          visible={!!mediaInfo}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setMediaInfo(null)}
+        >
+          <View style={styles.previewBackdrop}>
+            <View style={styles.previewSheet}>
+              <View style={styles.previewToolbar}>
+                <View>
+                  <Text style={styles.previewEyebrow}>MEDIA FOUND</Text>
+                  <Text style={styles.previewHeading}>Your video</Text>
                 </View>
-              ) : null}
+                <TouchableOpacity
+                  style={styles.previewCloseButton}
+                  onPress={() => setMediaInfo(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close media preview"
+                >
+                  <Text style={styles.previewCloseText}>×</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView
+                style={styles.previewScroll}
+                contentContainerStyle={styles.previewScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <GlassCard style={styles.glassMediaCard} interactive>
+                  {mediaInfo.thumbnail ? (
+                    <View style={styles.thumbnailWrapper}>
+                      <Image
+                        source={{ uri: mediaInfo.thumbnail }}
+                        style={styles.thumbnail}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.thumbnailGlassOverlay}>
+                        {mediaInfo.duration > 0 && (
+                          <View style={styles.durationBadge}>
+                            <Text style={styles.durationBadgeText}>
+                              {formatDuration(mediaInfo.duration)}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.platformBadge}>
+                          <Text style={styles.platformBadgeText}>
+                            {(mediaInfo.extractor || "MEDIA").toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
 
-              <Text style={styles.cardTitle} numberOfLines={2}>
-                {mediaInfo.title}
-              </Text>
-
-              <Text style={styles.sectionHeader}>Available Quality Presets</Text>
-              <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={availablePresets}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.presetsList}
-                renderItem={({ item }) => {
-                  const active = selectedFormat === item.id;
-                  return (
-                    <TouchableOpacity
-                      style={[
-                        styles.glassChip,
-                        active && styles.glassChipActive,
-                      ]}
-                      onPress={() => setSelectedFormat(item.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.glassChipIcon}>{item.icon}</Text>
-                      <Text
-                        style={[
-                          styles.glassChipLabel,
-                          active && styles.glassChipLabelActive,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.glassChipSub,
-                          active && styles.glassChipSubActive,
-                        ]}
-                      >
-                        {item.sub}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-
-              {mediaInfo.formats && mediaInfo.formats.length > 0 && (
-                <>
-                  <Text style={styles.sectionHeaderSub}>
-                    Detected Raw Streams
+                  <Text style={styles.cardTitle} numberOfLines={2}>
+                    {mediaInfo.title}
                   </Text>
+
+                  <Text style={styles.sectionHeader}>Available Quality Presets</Text>
                   <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    data={mediaInfo.formats.slice(0, 8)}
-                    keyExtractor={(item) => item.format_id}
-                    contentContainerStyle={styles.streamsList}
+                    data={availablePresets}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.presetsList}
                     renderItem={({ item }) => {
-                      const active = selectedFormat === item.format_id;
-                      const sizeLabel = formatFileSize(item.filesize);
+                      const active = selectedFormat === item.id;
                       return (
                         <TouchableOpacity
                           style={[
-                            styles.glassStreamBadge,
-                            active && styles.glassStreamBadgeActive,
+                            styles.glassChip,
+                            active && styles.glassChipActive,
                           ]}
-                          onPress={() => setSelectedFormat(item.format_id)}
+                          onPress={() => setSelectedFormat(item.id)}
                           activeOpacity={0.7}
                         >
+                          <Text style={styles.glassChipIcon}>{item.icon}</Text>
                           <Text
                             style={[
-                              styles.glassStreamText,
-                              active && styles.glassStreamTextActive,
+                              styles.glassChipLabel,
+                              active && styles.glassChipLabelActive,
                             ]}
                           >
-                            {item.resolution} ({item.ext})
+                            {item.label}
                           </Text>
-                          {sizeLabel ? (
-                            <Text style={styles.glassStreamSize}>
-                              {sizeLabel}
-                            </Text>
-                          ) : null}
+                          <Text
+                            style={[
+                              styles.glassChipSub,
+                              active && styles.glassChipSubActive,
+                            ]}
+                          >
+                            {item.sub}
+                          </Text>
                         </TouchableOpacity>
                       );
                     }}
                   />
-                </>
-              )}
 
-              {downloading && (
-                <View style={styles.glassProgressTrack}>
-                  <View
+                  {mediaInfo.formats && mediaInfo.formats.length > 0 && (
+                    <>
+                      <Text style={styles.sectionHeaderSub}>
+                        Detected Raw Streams
+                      </Text>
+                      <FlatList
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        data={mediaInfo.formats.slice(0, 8)}
+                        keyExtractor={(item) => item.format_id}
+                        contentContainerStyle={styles.streamsList}
+                        renderItem={({ item }) => {
+                          const active = selectedFormat === item.format_id;
+                          const sizeLabel = formatFileSize(item.filesize);
+                          return (
+                            <TouchableOpacity
+                              style={[
+                                styles.glassStreamBadge,
+                                active && styles.glassStreamBadgeActive,
+                              ]}
+                              onPress={() => setSelectedFormat(item.format_id)}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.glassStreamText,
+                                  active && styles.glassStreamTextActive,
+                                ]}
+                              >
+                                {item.resolution} ({item.ext})
+                              </Text>
+                              {sizeLabel ? (
+                                <Text style={styles.glassStreamSize}>
+                                  {sizeLabel}
+                                </Text>
+                              ) : null}
+                            </TouchableOpacity>
+                          );
+                        }}
+                      />
+                    </>
+                  )}
+
+                  {downloading && (
+                    <View style={styles.glassProgressTrack}>
+                      <View
+                        style={[
+                          styles.glassProgressBar,
+                          { width: `${progress.percent}%` },
+                        ]}
+                      />
+                      <Text style={styles.glassProgressText}>
+                        {progress.percent}% •{" "}
+                        {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
+                      </Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
                     style={[
-                      styles.glassProgressBar,
-                      { width: `${progress.percent}%` },
+                      styles.glassDownloadButton,
+                      downloading && styles.buttonDisabled,
                     ]}
-                  />
-                  <Text style={styles.glassProgressText}>
-                    {progress.percent}% •{" "}
-                    {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
-                  </Text>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[
-                  styles.glassDownloadButton,
-                  downloading && styles.buttonDisabled,
-                ]}
-                onPress={handleDownload}
-                disabled={downloading}
-                activeOpacity={0.8}
-              >
-                {downloading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.glassDownloadButtonText}>
-                    {selectedFormat === "thumbnail"
-                      ? "Save Cover Thumbnail"
-                      : selectedFormat === "audio"
-                      ? "Save Audio Track"
-                      : "Save Video to Storage"}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </GlassCard>
-          )}
-        </ScrollView>
-      </LiquidGlassProvider>
+                    onPress={handleDownload}
+                    disabled={downloading}
+                    activeOpacity={0.8}
+                  >
+                    {downloading ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.glassDownloadButtonText}>
+                        {selectedFormat === "thumbnail"
+                          ? "Save Cover Thumbnail"
+                          : selectedFormat === "audio"
+                          ? "Save Audio Track"
+                          : "Save Video to Storage"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </GlassCard>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -484,12 +531,12 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#09090B",
+    backgroundColor: "#080B12",
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 44,
   },
   ambientOrbTop: {
     position: "absolute",
@@ -498,7 +545,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: "rgba(59, 130, 246, 0.16)",
+    backgroundColor: "rgba(72, 121, 255, 0.20)",
   },
   ambientOrbCenter: {
     position: "absolute",
@@ -507,7 +554,7 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: "rgba(147, 51, 234, 0.12)",
+    backgroundColor: "rgba(142, 91, 255, 0.13)",
   },
   ambientOrbBottom: {
     position: "absolute",
@@ -516,24 +563,97 @@ const styles = StyleSheet.create({
     width: 240,
     height: 240,
     borderRadius: 120,
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    backgroundColor: "rgba(16, 185, 129, 0.10)",
+  },
+  ambientHighlight: {
+    position: "absolute",
+    top: 170,
+    right: -100,
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: "rgba(56, 189, 248, 0.07)",
   },
   glassHeader: {
-    borderRadius: 22,
-    paddingVertical: 18,
+    borderRadius: 28,
+    paddingVertical: 20,
     paddingHorizontal: 18,
-    marginBottom: 16,
+    marginBottom: 0,
     overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.075)",
+    borderColor: "rgba(255,255,255,0.17)",
+    borderTopColor: "rgba(255,255,255,0.32)",
   },
   headerTitleRow: {
     flexDirection: "row",
     alignItems: "center",
   },
-  brandTitle: {
-    fontSize: 28,
+  brandMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.28)",
+    borderTopColor: "rgba(255,255,255,0.48)",
+  },
+  brandMarkText: {
+    color: "#FFFFFF",
+    fontSize: 21,
     fontWeight: "900",
+  },
+  brandCopy: {
+    marginLeft: 11,
+    flex: 1,
+  },
+  brandNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  brandTitle: {
+    fontSize: 21,
+    fontWeight: "800",
     color: "#FAFAFA",
-    letterSpacing: 2,
+    letterSpacing: 0.2,
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#6EE7B7",
+    marginRight: 6,
+  },
+  statusText: {
+    color: "#D1FAE5",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 25,
+    lineHeight: 31,
+    fontWeight: "800",
+    letterSpacing: -0.6,
+    marginTop: 28,
+  },
+  heroSubtitle: {
+    color: "rgba(230,237,249,0.70)",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 6,
   },
   proBadge: {
     marginLeft: 10,
@@ -554,17 +674,20 @@ const styles = StyleSheet.create({
   brandSubtitle: {
     fontSize: 12,
     color: "#A1A1AA",
-    marginTop: 6,
+    marginTop: 2,
     lineHeight: 16,
   },
   glassInputCard: {
     flexDirection: "row",
-    borderRadius: 18,
+    borderRadius: 20,
     alignItems: "center",
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     marginBottom: 12,
     overflow: "hidden",
-    height: 54,
+    height: 58,
+    backgroundColor: "rgba(255,255,255,0.085)",
+    borderColor: "rgba(255,255,255,0.16)",
+    borderTopColor: "rgba(255,255,255,0.30)",
   },
   textInput: {
     flex: 1,
@@ -587,29 +710,93 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   glassPrimaryButton: {
-    backgroundColor: "rgba(250, 250, 250, 0.95)",
+    backgroundColor: "rgba(227, 239, 255, 0.96)",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.4)",
-    height: 50,
-    borderRadius: 18,
+    borderColor: "rgba(255, 255, 255, 0.68)",
+    borderTopColor: "#FFFFFF",
+    height: 54,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
   },
   glassPrimaryButtonText: {
-    color: "#09090B",
+    color: "#09111E",
     fontSize: 15,
     fontWeight: "800",
-    letterSpacing: 0.5,
+    letterSpacing: 0.1,
   },
   buttonDisabled: {
     opacity: 0.55,
   },
-  glassMediaCard: {
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 20,
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(3, 6, 14, 0.78)",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 34,
+  },
+  previewSheet: {
+    width: "100%",
+    maxHeight: "90%",
+    borderRadius: 30,
+    padding: 14,
+    backgroundColor: "rgba(16, 21, 33, 0.97)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.20)",
+    borderTopColor: "rgba(255,255,255,0.38)",
     overflow: "hidden",
+  },
+  previewToolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+    paddingTop: 2,
+    paddingBottom: 12,
+  },
+  previewEyebrow: {
+    color: "#9FB9F8",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.8,
+  },
+  previewHeading: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  previewCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.09)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  previewCloseText: {
+    color: "#FFFFFF",
+    fontSize: 26,
+    lineHeight: 29,
+    fontWeight: "300",
+  },
+  previewScroll: {
+    flexShrink: 1,
+  },
+  previewScrollContent: {
+    paddingBottom: 4,
+  },
+  glassMediaCard: {
+    borderRadius: 26,
+    padding: 16,
+    marginBottom: 0,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.075)",
+    borderColor: "rgba(255,255,255,0.17)",
+    borderTopColor: "rgba(255,255,255,0.32)",
   },
   thumbnailWrapper: {
     position: "relative",
