@@ -1,22 +1,42 @@
 import json
 import os
-import random
 import certifi
 import yt_dlp
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
+# Optional parth_dl import for Instagram no-login fallback
+try:
+    import parth_dl
+except ImportError:
+    parth_dl = None
+
+
+def _clean_url(url: str) -> str:
+    """Strip tracking and session query parameters."""
+    if not url:
+        return ""
+    clean = url.strip()
+    if "instagram.com" in clean or "tiktok.com" in clean or "youtu.be" in clean:
+        clean = clean.split("?")[0]
+    return clean
+
+
 def _ua_for(url: str) -> str:
     if any(x in url for x in ("tiktok.com", "vm.tiktok.com", "vt.tiktok.com")):
-        # Short / fake UA often bypasses TikTok challenge
         return "abc"
     if "instagram.com" in url:
-        return "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-    # YouTube / others
-    return "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        return (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        )
+    return (
+        "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+    )
 
 
-def _opts(url: str, for_download: bool = False):
+def _get_ydl_opts(url: str, for_download: bool = False, output_dir: str = "", progress_hook=None):
     is_youtube = "youtube.com" in url or "youtu.be" in url
     is_tiktok = any(x in url for x in ("tiktok.com", "vm.tiktok.com", "vt.tiktok.com"))
     is_instagram = "instagram.com" in url
@@ -37,17 +57,20 @@ def _opts(url: str, for_download: bool = False):
     }
 
     if is_youtube:
-        # Try multiple clients – one of them usually works
         opts["extractor_args"] = {
             "youtube": {
-                "player_client": ["android", "ios", "tv", "mweb"],
+                "player_client": ["tv", "mweb", "android"],
             }
         }
         if for_download:
-            # Very flexible format string with many fallbacks
-            opts["format"] = "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio/best/bestvideo+bestaudio"
+            # High quality 1080p/720p priority format selector
+            opts["format"] = (
+                "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
+                "bestvideo[height<=1080]+bestaudio/"
+                "best[height<=1080]/"
+                "best"
+            )
             opts["merge_output_format"] = "mp4"
-        # IMPORTANT: for info extraction do NOT set format at all
 
     elif is_tiktok:
         opts["http_headers"]["User-Agent"] = "abc"
@@ -55,8 +78,6 @@ def _opts(url: str, for_download: bool = False):
             opts["format"] = "best"
 
     elif is_instagram:
-        # Instagram almost always needs login for reliable access.
-        # These options help a bit for public content.
         opts["http_headers"].update({
             "X-IG-App-ID": "936619743392459",
             "X-ASBD-ID": "129477",
@@ -70,22 +91,54 @@ def _opts(url: str, for_download: bool = False):
         if for_download:
             opts["format"] = "best[ext=mp4]/best"
 
+    if for_download:
+        if output_dir:
+            opts["outtmpl"] = os.path.join(output_dir, "%(title).100s.%(ext)s")
+        if progress_hook:
+            opts["progress_hooks"] = [progress_hook]
+    else:
+        opts["skip_download"] = True
+        opts["extract_flat"] = False
+
     return opts
 
 
 def get_media_info(url: str) -> str:
-    """Metadata only – never request a specific format."""
-    # Clean tracking params that sometimes break extractors
-    clean_url = url.split("?")[0] if "tiktok.com" in url or "instagram.com" in url else url
+    """Extract metadata only (no format lock on info extract)."""
+    clean_url = _clean_url(url)
+    is_instagram = "instagram.com" in clean_url
 
-    ydl_opts = {
-        **_opts(clean_url, for_download=False),
-        "skip_download": True,
-        "extract_flat": False,
-    }
+    # Check parth-dl for Instagram first if available
+    if is_instagram and parth_dl:
+        try:
+            info = parth_dl.get_info(clean_url)
+            if info:
+                title = getattr(info, "caption", "") or getattr(info, "shortcode", "") or "Instagram Reel"
+                thumb = getattr(info, "thumbnail_url", "") or ""
+                return json.dumps({
+                    "success": True,
+                    "id": getattr(info, "shortcode", "") or "",
+                    "title": str(title)[:100],
+                    "thumbnail": thumb,
+                    "duration": 0,
+                    "extractor": "instagram",
+                    "formats": [{
+                        "format_id": "best",
+                        "ext": "mp4",
+                        "resolution": "HD",
+                        "filesize": 0,
+                        "has_video": True,
+                        "has_audio": True,
+                        "quality_note": "Public Reel",
+                    }],
+                })
+        except Exception:
+            pass  # Fallback to yt-dlp below
+
+    opts = _get_ydl_opts(clean_url, for_download=False)
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(opts) as ydl:
             meta = ydl.extract_info(clean_url, download=False)
             if not meta:
                 return json.dumps({"success": False, "error": "Unable to extract info from this URL."})
@@ -126,10 +179,12 @@ def get_media_info(url: str) -> str:
             })
     except Exception as e:
         err = str(e)
-        # Friendlier messages
-        if "login required" in err.lower() or "rate-limit" in err.lower():
-            err = "Login/cookies required for this Instagram content. Public posts sometimes work; private/rate-limited ones need account cookies."
-        elif "sign in to confirm" in err.lower() or "not a bot" in err.lower():
+        if is_instagram:
+            return json.dumps({
+                "success": False,
+                "error": "Public content only / try another link",
+            })
+        if "sign in to confirm" in err.lower() or "not a bot" in err.lower():
             err = "YouTube bot check. Try mobile data instead of Wi-Fi, or try again later."
         elif "webpage video data" in err.lower():
             err = "TikTok blocked extraction. Try another video or update yt-dlp."
@@ -167,30 +222,52 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
         elif d.get("status") == "finished":
             emit_progress(json.dumps({"status": "finished", "percent": 100.0}))
 
-    clean_url = url.split("?")[0] if "tiktok.com" in url or "instagram.com" in url else url
+    clean_url = _clean_url(url)
+    is_instagram = "instagram.com" in clean_url
+    os.makedirs(output_directory, exist_ok=True)
 
+    # Try parth-dl for Instagram download if available
+    if is_instagram and parth_dl:
+        try:
+            result = parth_dl.download(clean_url, output_path=output_directory)
+            if result:
+                path = str(result)
+                emit_progress(json.dumps({"status": "finished", "percent": 100.0}))
+                return json.dumps({
+                    "success": True,
+                    "filePath": path,
+                    "title": os.path.basename(path),
+                })
+        except Exception:
+            pass  # Fallback to yt-dlp
+
+    ydl_opts = _get_ydl_opts(
+        clean_url,
+        for_download=True,
+        output_dir=output_directory,
+        progress_hook=progress_hook,
+    )
+
+    # Allow custom format_id if selected and not default/best
     if format_id and format_id not in ("best", "unknown", ""):
-        chosen = f"{format_id}/best[ext=mp4]/best"
-    else:
-        chosen = "best[ext=mp4]/bestvideo+bestaudio/best"
-
-    ydl_opts = {
-        **_opts(clean_url, for_download=True),
-        "format": chosen,
-        "outtmpl": os.path.join(output_directory, "%(title).100s.%(ext)s"),
-        "progress_hooks": [progress_hook],
-        "merge_output_format": "mp4",
-    }
+        ydl_opts["format"] = f"{format_id}/best[ext=mp4]/best"
 
     try:
-        os.makedirs(output_directory, exist_ok=True)
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(clean_url, download=True)
             path = ydl.prepare_filename(info)
+            # When yt-dlp merges to mp4, prepare_filename might have original ext
+            if not os.path.exists(path):
+                base, _ = os.path.splitext(path)
+                if os.path.exists(base + ".mp4"):
+                    path = base + ".mp4"
             return json.dumps({
                 "success": True,
                 "filePath": path,
                 "title": info.get("title") or "",
             })
     except Exception as e:
-        return json.dumps({"success": False, "error": str(e)})
+        err = str(e)
+        if is_instagram:
+            err = "Public content only / try another link"
+        return json.dumps({"success": False, "error": err})

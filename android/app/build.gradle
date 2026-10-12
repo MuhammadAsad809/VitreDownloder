@@ -45,6 +45,7 @@ android {
                 // Pin a recent stable version for reproducible builds
                 install "yt-dlp==2026.8.19"
                 install "certifi"
+                install "parth-dl"
             }
         }
     }
