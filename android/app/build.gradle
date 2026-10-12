@@ -43,7 +43,7 @@ android {
             version "3.11"
             pip {
                 // Pin a recent stable version for reproducible builds
-                install "yt-dlp==2024.12.23"
+                install "yt-dlp==2026.8.19"
                 install "certifi"
             }
         }
