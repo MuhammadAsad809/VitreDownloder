@@ -8,6 +8,8 @@ react {
     reactNativeDir = file("../node_modules/react-native")
     cliFile = file("../node_modules/react-native/cli.js")
     entryFile = file("../index.js")
+    bundleInDebug = true
+    bundleInRelease = true
 }
 
 android {
