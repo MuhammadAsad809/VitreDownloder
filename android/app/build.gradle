@@ -12,14 +12,14 @@ react {
 }
 
 android {
-    ndkVersion rootProject.ext.ndkVersion
-    compileSdk rootProject.ext.compileSdkVersion
+    ndkVersion rootProject.ext.has('ndkVersion') ? rootProject.ext.ndkVersion : "26.1.10909125"
+    compileSdkVersion 34
     namespace "com.vitre.downloader"
 
     defaultConfig {
         applicationId "com.vitre.downloader"
-        minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion rootProject.ext.targetSdkVersion
+        minSdkVersion 24
+        targetSdkVersion 34
         versionCode 1
         versionName "1.0.0"
 
