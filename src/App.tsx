@@ -17,10 +17,13 @@ import {
   Platform,
   StatusBar,
   Dimensions,
+  ScrollView,
 } from "react-native";
 
 const { PythonBridgeModule } = NativeModules;
-const pythonEvents = PythonBridgeModule ? new NativeEventEmitter(PythonBridgeModule) : null;
+const pythonEvents = PythonBridgeModule
+  ? new NativeEventEmitter(PythonBridgeModule)
+  : null;
 
 const { width } = Dimensions.get("window");
 
@@ -56,20 +59,22 @@ export default function App() {
 
   useEffect(() => {
     if (!pythonEvents) return;
-    const subscription = pythonEvents.addListener("onDownloadProgress", (data: string) => {
-      try {
-        const parsed = JSON.parse(data);
-        if (parsed.percent !== undefined) {
-          setProgress({
-            percent: parsed.percent,
-            speed: parsed.speed || 0,
-          });
+    const subscription = pythonEvents.addListener(
+      "onDownloadProgress",
+      (data: string) => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.percent !== undefined) {
+            setProgress({
+              percent: parsed.percent,
+              speed: parsed.speed || 0,
+            });
+          }
+        } catch (e) {
+          console.error("Progress JSON parse error:", e);
         }
-      } catch (e) {
-        console.error("Progress JSON parse error:", e);
       }
-    });
-
+    );
     return () => subscription.remove();
   }, []);
 
@@ -79,7 +84,8 @@ export default function App() {
         PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
         {
           title: "Storage Permission Required",
-          message: "Vitre needs storage permission to save downloads to your device.",
+          message:
+            "Vitre needs storage permission to save downloads to your device.",
           buttonPositive: "Allow",
         }
       );
@@ -102,9 +108,11 @@ export default function App() {
       Alert.alert("Input Required", "Please enter or paste a valid media URL.");
       return;
     }
-
     if (!PythonBridgeModule) {
-      Alert.alert("Bridge Error", "PythonBridgeModule is not linked or initialized.");
+      Alert.alert(
+        "Bridge Error",
+        "PythonBridgeModule is not linked or initialized."
+      );
       return;
     }
 
@@ -132,7 +140,6 @@ export default function App() {
       Alert.alert("Permission Denied", "Cannot write to Downloads directory.");
       return;
     }
-
     if (!PythonBridgeModule) {
       Alert.alert("Bridge Error", "PythonBridgeModule is not linked.");
       return;
@@ -140,7 +147,10 @@ export default function App() {
 
     setDownloading(true);
     try {
-      const resultStr = await PythonBridgeModule.downloadMedia(url.trim(), selectedFormat);
+      const resultStr = await PythonBridgeModule.downloadMedia(
+        url.trim(),
+        selectedFormat
+      );
       const res = JSON.parse(resultStr);
       Alert.alert("Download Completed", `Saved to:\n${res.filePath}`);
     } catch (err: any) {
@@ -157,356 +167,467 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#050508" />
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor="#030305" />
 
-      {/* Ambient background glow */}
-      <View style={styles.ambientTop} />
-      <View style={styles.ambientBottom} />
+      {/* Ambient background orbs */}
+      <View style={styles.orbTop} />
+      <View style={styles.orbBottom} />
+      <View style={styles.orbMid} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.brandTitle}>VITRE</Text>
-        <Text style={styles.brandSubtitle}>On-device yt-dlp • Liquid Engine</Text>
-      </View>
-
-      {/* Glass Input */}
-      <View style={styles.glassInputWrapper}>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Paste YouTube, TikTok or Instagram link..."
-          placeholderTextColor="rgba(255,255,255,0.35)"
-          value={url}
-          onChangeText={setUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <TouchableOpacity style={styles.pasteButton} onPress={handlePaste} activeOpacity={0.7}>
-          <Text style={styles.pasteButtonText}>Paste</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Primary Glass Button */}
-      <TouchableOpacity
-        style={[styles.primaryButton, (loading || downloading) && styles.buttonDisabled]}
-        onPress={handleFetch}
-        disabled={loading || downloading}
-        activeOpacity={0.85}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.primaryButtonText}>Analyze Video</Text>
-        )}
-      </TouchableOpacity>
+        {/* Brand Header */}
+        <View style={styles.header}>
+          <Text style={styles.logo}>VITRE</Text>
+          <Text style={styles.tagline}>Premium On-Device Downloader</Text>
+        </View>
 
-      {/* Media Glass Card */}
-      {mediaInfo && (
-        <View style={styles.glassCard}>
-          {/* Inner highlight line */}
-          <View style={styles.cardHighlight} />
-
-          {mediaInfo.thumbnail ? (
-            <Image source={{ uri: mediaInfo.thumbnail }} style={styles.thumbnail} resizeMode="cover" />
-          ) : null}
-
-          <Text style={styles.cardTitle} numberOfLines={2}>
-            {mediaInfo.title}
-          </Text>
-
-          <View style={styles.badgeRow}>
-            <View style={styles.platformBadge}>
-              <Text style={styles.platformBadgeText}>{mediaInfo.extractor.toUpperCase()}</Text>
-            </View>
+        {/* Glass Input Card */}
+        <View style={styles.glassPanel}>
+          <Text style={styles.label}>Media Link</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="Paste YouTube • TikTok • Instagram..."
+              placeholderTextColor="rgba(255,255,255,0.28)"
+              value={url}
+              onChangeText={setUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              selectionColor="#60A5FA"
+            />
+            <TouchableOpacity
+              style={styles.pasteChip}
+              onPress={handlePaste}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.pasteChipText}>Paste</Text>
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionHeader}>Select Quality</Text>
-
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={mediaInfo.formats.slice(0, 8)}
-            keyExtractor={(item) => item.format_id}
-            contentContainerStyle={{ paddingVertical: 4 }}
-            renderItem={({ item }) => {
-              const active = selectedFormat === item.format_id;
-              const sizeLabel = formatFileSize(item.filesize);
-              return (
-                <TouchableOpacity
-                  style={[styles.formatBadge, active && styles.formatBadgeActive]}
-                  onPress={() => setSelectedFormat(item.format_id)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.formatBadgeText, active && styles.formatBadgeTextActive]}>
-                    {item.resolution} · {item.ext}
-                  </Text>
-                  {sizeLabel ? (
-                    <Text style={[styles.formatSizeText, active && { color: "rgba(255,255,255,0.85)" }]}>
-                      {sizeLabel}
-                    </Text>
-                  ) : null}
-                </TouchableOpacity>
-              );
-            }}
-          />
-
-          {/* Progress */}
-          {downloading && (
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressBar, { width: `${Math.min(progress.percent, 100)}%` }]} />
-              <Text style={styles.progressText}>
-                {progress.percent.toFixed(0)}%  •  {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
-              </Text>
-            </View>
-          )}
-
-          {/* Download Button */}
           <TouchableOpacity
-            style={[styles.downloadButton, downloading && styles.buttonDisabled]}
-            onPress={handleDownload}
-            disabled={downloading}
+            style={[
+              styles.analyzeBtn,
+              (loading || downloading) && styles.btnDisabled,
+            ]}
+            onPress={handleFetch}
+            disabled={loading || downloading}
             activeOpacity={0.85}
           >
-            {downloading ? (
-              <ActivityIndicator color="#FFFFFF" />
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.downloadButtonText}>Save to Storage</Text>
+              <Text style={styles.analyzeBtnText}>Analyze Video</Text>
             )}
           </TouchableOpacity>
         </View>
-      )}
+
+        {/* Media Result Card */}
+        {mediaInfo && (
+          <View style={styles.glassPanel}>
+            {/* Top highlight line */}
+            <View style={styles.panelHighlight} />
+
+            {mediaInfo.thumbnail ? (
+              <View style={styles.thumbWrapper}>
+                <Image
+                  source={{ uri: mediaInfo.thumbnail }}
+                  style={styles.thumbnail}
+                  resizeMode="cover"
+                />
+                <View style={styles.thumbOverlay} />
+              </View>
+            ) : null}
+
+            <Text style={styles.mediaTitle} numberOfLines={2}>
+              {mediaInfo.title}
+            </Text>
+
+            <View style={styles.metaRow}>
+              <View style={styles.platformPill}>
+                <Text style={styles.platformPillText}>
+                  {mediaInfo.extractor.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionLabel}>Quality & Format</Text>
+
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={mediaInfo.formats.slice(0, 10)}
+              keyExtractor={(item) => item.format_id}
+              contentContainerStyle={styles.formatList}
+              renderItem={({ item }) => {
+                const active = selectedFormat === item.format_id;
+                const sizeLabel = formatFileSize(item.filesize);
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.formatChip,
+                      active && styles.formatChipActive,
+                    ]}
+                    onPress={() => setSelectedFormat(item.format_id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.formatChipText,
+                        active && styles.formatChipTextActive,
+                      ]}
+                    >
+                      {item.resolution}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.formatChipSub,
+                        active && styles.formatChipSubActive,
+                      ]}
+                    >
+                      {item.ext.toUpperCase()}
+                      {sizeLabel ? ` · ${sizeLabel}` : ""}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+
+            {/* Premium Progress */}
+            {downloading && (
+              <View style={styles.progressBlock}>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${Math.min(progress.percent, 100)}%` },
+                    ]}
+                  />
+                </View>
+                <View style={styles.progressMeta}>
+                  <Text style={styles.progressPercent}>
+                    {progress.percent.toFixed(0)}%
+                  </Text>
+                  <Text style={styles.progressSpeed}>
+                    {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.downloadBtn,
+                downloading && styles.btnDisabled,
+              ]}
+              onPress={handleDownload}
+              disabled={downloading}
+              activeOpacity={0.85}
+            >
+              {downloading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.downloadBtnText}>Save to Device</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: "#050508",
-    paddingHorizontal: 18,
-    paddingTop: 20,
+    backgroundColor: "#030305",
   },
-  ambientTop: {
-    position: "absolute",
-    top: -80,
-    left: -60,
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: "rgba(59, 130, 246, 0.12)",
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 30,
   },
-  ambientBottom: {
+
+  // Ambient orbs
+  orbTop: {
     position: "absolute",
-    bottom: -100,
-    right: -80,
+    top: -120,
+    left: -80,
     width: 320,
     height: 320,
     borderRadius: 160,
-    backgroundColor: "rgba(139, 92, 246, 0.09)",
+    backgroundColor: "rgba(59, 130, 246, 0.11)",
   },
+  orbBottom: {
+    position: "absolute",
+    bottom: -140,
+    right: -100,
+    width: 360,
+    height: 360,
+    borderRadius: 180,
+    backgroundColor: "rgba(124, 58, 237, 0.09)",
+  },
+  orbMid: {
+    position: "absolute",
+    top: "42%",
+    right: -60,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: "rgba(14, 165, 233, 0.06)",
+  },
+
+  // Header
   header: {
     marginBottom: 28,
-    marginTop: 8,
+    marginTop: 12,
   },
-  brandTitle: {
-    fontSize: 34,
+  logo: {
+    fontSize: 36,
     fontWeight: "900",
     color: "#FFFFFF",
-    letterSpacing: 3,
+    letterSpacing: 4,
   },
-  brandSubtitle: {
+  tagline: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(255,255,255,0.42)",
     marginTop: 6,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
-  glassInputWrapper: {
+
+  // Glass Panel
+  glassPanel: {
+    backgroundColor: "rgba(255,255,255,0.045)",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    padding: 20,
+    marginBottom: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.45,
+    shadowRadius: 28,
+    elevation: 14,
+  },
+  panelHighlight: {
+    position: "absolute",
+    top: 0,
+    left: 24,
+    right: 24,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+
+  label: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.45)",
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    textTransform: "uppercase",
+  },
+
+  // Input
+  inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.28)",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    paddingHorizontal: 14,
-    height: 56,
-    // soft shadow for depth
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingLeft: 16,
+    paddingRight: 8,
+    height: 54,
   },
-  textInput: {
+  input: {
     flex: 1,
-    height: 56,
     color: "#FFFFFF",
     fontSize: 15,
     letterSpacing: 0.2,
   },
-  pasteButton: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+  pasteChip: {
+    backgroundColor: "rgba(255,255,255,0.09)",
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: "rgba(255,255,255,0.12)",
   },
-  pasteButtonText: {
+  pasteChipText: {
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "600",
   },
-  primaryButton: {
+
+  // Analyze Button
+  analyzeBtn: {
     marginTop: 16,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: "rgba(59, 130, 246, 0.85)",
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "rgba(59, 130, 246, 0.9)",
     borderWidth: 1,
-    borderColor: "rgba(147, 197, 253, 0.4)",
+    borderColor: "rgba(147, 197, 253, 0.35)",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#3B82F6",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
-    shadowRadius: 20,
+    shadowRadius: 18,
     elevation: 10,
   },
-  primaryButtonText: {
+  analyzeBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 0.4,
   },
-  buttonDisabled: {
-    opacity: 0.55,
+  btnDisabled: {
+    opacity: 0.5,
   },
-  glassCard: {
-    marginTop: 24,
-    backgroundColor: "rgba(255,255,255,0.055)",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.13)",
-    padding: 18,
+
+  // Thumbnail
+  thumbWrapper: {
+    borderRadius: 16,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.45,
-    shadowRadius: 24,
-    elevation: 12,
-  },
-  cardHighlight: {
-    position: "absolute",
-    top: 0,
-    left: 20,
-    right: 20,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.25)",
+    marginBottom: 16,
   },
   thumbnail: {
     width: "100%",
     height: 190,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
-  cardTitle: {
+  thumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.15)",
+  },
+
+  mediaTitle: {
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "700",
-    marginTop: 14,
     lineHeight: 24,
+    marginBottom: 12,
   },
-  badgeRow: {
+
+  metaRow: {
     flexDirection: "row",
-    marginTop: 10,
+    marginBottom: 18,
   },
-  platformBadge: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+  platformPill: {
+    backgroundColor: "rgba(255,255,255,0.07)",
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  platformBadgeText: {
-    color: "rgba(255,255,255,0.7)",
+  platformPillText: {
+    color: "rgba(255,255,255,0.65)",
     fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.8,
+    letterSpacing: 1,
   },
-  sectionHeader: {
-    color: "rgba(255,255,255,0.5)",
+
+  sectionLabel: {
     fontSize: 12,
     fontWeight: "600",
-    marginTop: 18,
-    marginBottom: 10,
-    letterSpacing: 0.6,
+    color: "rgba(255,255,255,0.42)",
+    letterSpacing: 0.7,
+    marginBottom: 12,
+    textTransform: "uppercase",
   },
-  formatBadge: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+
+  formatList: {
+    paddingBottom: 4,
+  },
+  formatChip: {
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 14,
-    marginRight: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginRight: 10,
+    minWidth: 100,
     alignItems: "center",
-    minWidth: 90,
   },
-  formatBadgeActive: {
-    backgroundColor: "rgba(59, 130, 246, 0.35)",
-    borderColor: "rgba(147, 197, 253, 0.55)",
+  formatChipActive: {
+    backgroundColor: "rgba(59, 130, 246, 0.28)",
+    borderColor: "rgba(147, 197, 253, 0.5)",
   },
-  formatBadgeText: {
+  formatChipText: {
     color: "rgba(255,255,255,0.75)",
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
   },
-  formatBadgeTextActive: {
+  formatChipTextActive: {
     color: "#FFFFFF",
   },
-  formatSizeText: {
-    color: "rgba(255,255,255,0.4)",
+  formatChipSub: {
+    color: "rgba(255,255,255,0.35)",
     fontSize: 11,
     marginTop: 3,
   },
-  progressContainer: {
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 14,
+  formatChipSubActive: {
+    color: "rgba(255,255,255,0.8)",
+  },
+
+  // Progress
+  progressBlock: {
+    marginTop: 20,
+    marginBottom: 4,
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 4,
     overflow: "hidden",
-    marginTop: 18,
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
   },
-  progressBar: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(59, 130, 246, 0.7)",
-    borderRadius: 14,
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#3B82F6",
+    borderRadius: 4,
   },
-  progressText: {
+  progressMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+  progressPercent: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "700",
-    textAlign: "center",
-    letterSpacing: 0.3,
   },
-  downloadButton: {
+  progressSpeed: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+
+  // Download Button
+  downloadBtn: {
     marginTop: 18,
     height: 52,
     borderRadius: 16,
-    backgroundColor: "rgba(37, 99, 235, 0.9)",
+    backgroundColor: "rgba(37, 99, 235, 0.95)",
     borderWidth: 1,
-    borderColor: "rgba(147, 197, 253, 0.35)",
+    borderColor: "rgba(147, 197, 253, 0.3)",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowRadius: 18,
+    elevation: 10,
   },
-  downloadButtonText: {
+  downloadBtnText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
