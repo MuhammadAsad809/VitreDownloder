@@ -105,11 +105,13 @@ class PythonBridgeModule(private val reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
+    @Suppress("UNUSED_PARAMETER")
     fun addListener(eventName: String) {
         // Required for React Native NativeEventEmitter
     }
 
     @ReactMethod
+    @Suppress("UNUSED_PARAMETER")
     fun removeListeners(count: Int) {
         // Required for React Native NativeEventEmitter
     }
