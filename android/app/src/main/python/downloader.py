@@ -53,19 +53,21 @@ def get_media_info(url: str) -> str:
             if info:
                 title = getattr(info, "caption", "") or getattr(info, "shortcode", "") or "Instagram Reel"
                 thumb = getattr(info, "thumbnail_url", "") or ""
-                return json.dumps({
-                    "success": True,
-                    "id": getattr(info, "shortcode", "") or "",
-                    "title": str(title)[:100],
-                    "thumbnail": thumb,
-                    "duration": 0,
-                    "extractor": "instagram",
-                    "formats": [
-                        {"format_id": "best", "ext": "mp4", "resolution": "Best Quality", "height": 1080, "filesize": 0, "has_video": True, "has_audio": True, "fps": 30, "quality_note": "Reel (HD)"},
-                        {"format_id": "audio", "ext": "m4a", "resolution": "Audio Only", "height": 0, "filesize": 0, "has_video": False, "has_audio": True, "fps": 0, "quality_note": "Original Audio"},
-                        {"format_id": "thumbnail", "ext": "jpg", "resolution": "Thumbnail Only", "height": 0, "filesize": 0, "has_video": False, "has_audio": False, "fps": 0, "quality_note": "Cover Image"},
-                    ],
-                })
+                # parth-dl is useful for Instagram downloads, but its info object does
+                # not reliably expose streams. Never invent formats here; let yt-dlp
+                # provide the real stream list below when possible.
+                if thumb and not isinstance(thumb, str):
+                    thumb = str(thumb)
+                if thumb:
+                    return json.dumps({
+                        "success": True,
+                        "id": getattr(info, "shortcode", "") or "",
+                        "title": str(title)[:100],
+                        "thumbnail": thumb,
+                        "duration": 0,
+                        "extractor": "instagram",
+                        "formats": [],
+                    })
         except Exception:
             pass  # Fallback to yt-dlp below
 
@@ -133,12 +135,21 @@ def get_media_info(url: str) -> str:
                     "quality_note": f.get("format_note") or "",
                 })
 
-            # Sort: highest video resolution first, then audio-only
-            formats.sort(key=lambda x: (x["has_video"], x["height"], x["filesize"]), reverse=True)
+            # Keep every usable real format, but remove duplicate format IDs and
+            # image/storyboard entries. Adaptive streams remain selectable by ID.
+            unique_formats = {}
+            for item in formats:
+                key = item["format_id"]
+                if key and (key not in unique_formats or item["filesize"] > unique_formats[key]["filesize"]):
+                    unique_formats[key] = item
+            formats = list(unique_formats.values())
+            formats.sort(key=lambda x: (x["has_video"], x["height"], x["has_audio"], x["filesize"]), reverse=True)
 
-            # Pick highest quality thumbnail
+            # Prefer a valid HTTPS thumbnail, then choose the largest available
+            # candidate. Some Instagram responses contain empty or expiring values.
             thumbnails = meta.get("thumbnails") or []
-            thumb_url = meta.get("thumbnail") or (thumbnails[-1].get("url") if thumbnails else "")
+            valid_thumbnails = [t.get("url") for t in thumbnails if isinstance(t, dict) and str(t.get("url", "")).startswith(("http://", "https://"))]
+            thumb_url = meta.get("thumbnail") if str(meta.get("thumbnail", "")).startswith(("http://", "https://")) else (valid_thumbnails[-1] if valid_thumbnails else "")
 
             return json.dumps({
                 "success": True,
@@ -297,13 +308,18 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
             path = ydl.prepare_filename(info)
             if not os.path.exists(path):
                 base, _ = os.path.splitext(path)
-                if os.path.exists(base + ".mp4"):
-                    path = base + ".mp4"
+                candidates = [base + ext for ext in (".mp4", ".webm", ".mkv", ".m4a", ".opus")]
+                path = next((candidate for candidate in candidates if os.path.exists(candidate)), "")
+            if not path or not os.path.isfile(path) or os.path.getsize(path) <= 0:
+                return json.dumps({"success": False, "error": "The downloader finished without creating a valid file."})
             return json.dumps({
                 "success": True,
                 "filePath": path,
                 "title": info.get("title") or "",
                 "thumbnail": info.get("thumbnail") or "",
+                "ext": os.path.splitext(path)[1].lstrip("."),
+                "filesize": os.path.getsize(path),
+                "resolution": info.get("resolution") or "",
             })
     except Exception as e:
         err = str(e)

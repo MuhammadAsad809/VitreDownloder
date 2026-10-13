@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import LinearGradient from "react-native-linear-gradient";
 import {
   SafeAreaView, View, Text, TextInput, TouchableOpacity, Image,
   ActivityIndicator, FlatList, StyleSheet, NativeModules, NativeEventEmitter,
-  Alert, Clipboard, PermissionsAndroid, Platform, StatusBar, ScrollView,
+  Alert, Clipboard, PermissionsAndroid, Platform, StatusBar, ScrollView, Linking,
 } from "react-native";
 import { LiquidGlassView, LiquidGlassProvider, isLiquidGlassSupported } from "liquid-glass-kit";
 
@@ -44,6 +45,23 @@ export default function App() {
   const [progress, setProgress] = useState({ percent: 0, speed: 0 });
   const [history, setHistory] = useState<DownloadRecord[]>([]);
   const [activeDownloads, setActiveDownloads] = useState<DownloadRecord[]>([]);
+
+  useEffect(() => {
+    Promise.all([AsyncStorage.getItem("vitre.history"), AsyncStorage.getItem("vitre.settings")]).then(([historyValue, settingsValue]) => {
+      try { if (historyValue) setHistory(JSON.parse(historyValue)); } catch { /* ignore corrupt local history */ }
+      try {
+        if (settingsValue) {
+          const saved = JSON.parse(settingsValue);
+          if (saved.defaultQuality) setDefaultQuality(saved.defaultQuality);
+          if (typeof saved.saveThumbnails === "boolean") setSaveThumbnails(saved.saveThumbnails);
+          if (typeof saved.confirmBeforeDownload === "boolean") setConfirmBeforeDownload(saved.confirmBeforeDownload);
+        }
+      } catch { /* use defaults */ }
+    });
+  }, []);
+
+  useEffect(() => { void AsyncStorage.setItem("vitre.history", JSON.stringify(history)); }, [history]);
+  useEffect(() => { void AsyncStorage.setItem("vitre.settings", JSON.stringify({ defaultQuality, saveThumbnails, confirmBeforeDownload })); }, [defaultQuality, saveThumbnails, confirmBeforeDownload]);
 
   useEffect(() => {
     if (!pythonEvents) return;
@@ -185,11 +203,18 @@ export default function App() {
           <Text style={styles.mediaTitle}>{mediaInfo.title || "Untitled media"}</Text>
           <View style={styles.metaRow}><Text style={styles.metaPill}>{(mediaInfo.extractor || "MEDIA").replace(/_/g, " ").toUpperCase()}</Text><Text style={styles.metaMuted}>{mediaInfo.formats?.length || 0} formats found</Text></View>
           <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Quality</Text><Text style={styles.stepLabel}>02 / FORMAT</Text></View>
-          {QUALITY_OPTIONS.map(option => {
-            const active = selectedFormat === option.value;
-            return <TouchableOpacity key={option.value} onPress={() => setSelectedFormat(option.value)} style={[styles.qualityRow, active && styles.qualityRowActive]}>
-              <View style={[styles.qualityIcon, active && styles.qualityIconActive]}><Text style={[styles.qualityIconText, active && styles.qualityIconTextActive]}>{option.value === "audio" ? "♫" : option.value === "best" ? "✦" : "▣"}</Text></View>
-              <View style={styles.qualityCopy}><Text style={styles.qualityTitle}>{option.label}</Text><Text style={styles.qualityNote}>{option.note}</Text></View>
+          <TouchableOpacity onPress={() => setSelectedFormat("best")} style={[styles.qualityRow, selectedFormat === "best" && styles.qualityRowActive]}>
+            <View style={[styles.qualityIcon, selectedFormat === "best" && styles.qualityIconActive]}><Text style={styles.qualityIconText}>✦</Text></View>
+            <View style={styles.qualityCopy}><Text style={styles.qualityTitle}>Best available</Text><Text style={styles.qualityNote}>Uses the highest real source quality and merges audio when needed</Text></View>
+            <View style={[styles.radioOuter, selectedFormat === "best" && styles.radioOuterActive]}>{selectedFormat === "best" && <View style={styles.radioInner}/>}</View>
+          </TouchableOpacity>
+          {(mediaInfo.formats || []).map(format => {
+            const active = selectedFormat === format.format_id;
+            const label = format.has_video ? (format.height ? `${format.height}p` : format.resolution) : "Audio only";
+            const note = `${format.format_id} · ${format.ext.toUpperCase()} · ${format.has_video ? (format.has_audio ? "video + audio" : "video only") : "audio"}${format.fps ? ` · ${format.fps} fps` : ""}`;
+            return <TouchableOpacity key={format.format_id} onPress={() => setSelectedFormat(format.format_id)} style={[styles.qualityRow, active && styles.qualityRowActive]}>
+              <View style={[styles.qualityIcon, active && styles.qualityIconActive]}><Text style={[styles.qualityIconText, active && styles.qualityIconTextActive]}>{format.has_video ? "▣" : "♫"}</Text></View>
+              <View style={styles.qualityCopy}><Text style={styles.qualityTitle}>{label || "Available format"}</Text><Text style={styles.qualityNote}>{note} · {formatFileSize(format.filesize)}</Text></View>
               <View style={[styles.radioOuter, active && styles.radioOuterActive]}>{active && <View style={styles.radioInner}/>}</View>
             </TouchableOpacity>;
           })}
@@ -206,7 +231,7 @@ export default function App() {
     <>
       <View style={styles.pageHeader}><Text style={styles.eyebrow}>YOUR LIBRARY</Text><Text style={styles.pageTitle}>Downloads</Text><Text style={styles.pageSubtitle}>Track current and finished downloads.</Text></View>
       {downloading && <GlassPanel><View style={styles.downloadItem}><View style={styles.fileIcon}><Text style={styles.fileIconText}>↓</Text></View><View style={styles.fileCopy}><Text style={styles.rowTitle}>{mediaInfo?.title || "Downloading media"}</Text><Text style={styles.rowSubtitle}>Downloading · {Math.round(progress.percent)}%</Text><View style={styles.progressTrack}><View style={[styles.progressFill, {width:`${Math.min(100,progress.percent)}%`}]} /></View></View><ActivityIndicator color="#9BFFC0"/></View></GlassPanel>}
-      {history.length ? history.map((item, i) => <GlassPanel key={item.date + i}><View style={styles.downloadItem}><View style={styles.fileIcon}><Text style={styles.fileIconText}>✓</Text></View><View style={styles.fileCopy}><Text style={styles.rowTitle} numberOfLines={2}>{item.title}</Text><Text style={styles.rowSubtitle}>Completed · {new Date(item.date).toLocaleDateString()}</Text><Text style={styles.pathText} numberOfLines={2}>{item.filePath}</Text></View></View></GlassPanel>) : !downloading ? <View style={styles.emptyState}><View style={styles.emptyIcon}><Text style={styles.emptyIconText}>↓</Text></View><Text style={styles.emptyTitle}>Nothing downloaded yet</Text><Text style={styles.emptyBody}>Your completed files will appear here after you save your first video.</Text><PrimaryButton title="Analyze a link" onPress={() => setTab("Home")}/></View> : null}
+      {history.length ? history.map((item, i) => <GlassPanel key={item.date + i}><View style={styles.downloadItem}><View style={styles.fileIcon}><Text style={styles.fileIconText}>✓</Text></View><View style={styles.fileCopy}><Text style={styles.rowTitle} numberOfLines={2}>{item.title}</Text><Text style={styles.rowSubtitle}>Completed · {new Date(item.date).toLocaleDateString()}</Text><Text style={styles.pathText} numberOfLines={2}>{item.filePath}</Text><TouchableOpacity accessibilityRole="button" onPress={() => item.filePath ? void Linking.openURL(`file://${item.filePath}`) : null}><Text style={styles.clearHistoryText}>Open file</Text></TouchableOpacity></View></View></GlassPanel>) : !downloading ? <View style={styles.emptyState}><View style={styles.emptyIcon}><Text style={styles.emptyIconText}>↓</Text></View><Text style={styles.emptyTitle}>Nothing downloaded yet</Text><Text style={styles.emptyBody}>Your completed files will appear here after you save your first video.</Text><PrimaryButton title="Analyze a link" onPress={() => setTab("Home")}/></View> : null}
     </>
   );
 
