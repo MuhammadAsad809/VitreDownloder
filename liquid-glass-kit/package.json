@@ -1,6 +1,11 @@
 {
   "name": "liquid-glass-kit",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "Fully upgraded pure-JS Liquid Glass for React Native – premium specular + depth",
   "main": "index.js",
-  "types": "index.d.ts"
+  "types": "index.d.ts",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  }
 }

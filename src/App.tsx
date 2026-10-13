@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import LinearGradient from "react-native-linear-gradient";
 import {
   SafeAreaView,
   View,
@@ -16,16 +17,20 @@ import {
   PermissionsAndroid,
   Platform,
   StatusBar,
-  Dimensions,
   ScrollView,
 } from "react-native";
+
+// Local pure-JS Liquid Glass kit for this React Native 0.73 app
+import {
+  LiquidGlassView,
+  LiquidGlassProvider,
+  isLiquidGlassSupported,
+} from "liquid-glass-kit";
 
 const { PythonBridgeModule } = NativeModules;
 const pythonEvents = PythonBridgeModule
   ? new NativeEventEmitter(PythonBridgeModule)
   : null;
-
-const { width } = Dimensions.get("window");
 
 interface FormatItem {
   format_id: string;
@@ -166,224 +171,216 @@ export default function App() {
     return `${mb.toFixed(1)} MB`;
   };
 
+  // Fallback style when native glass is not available
+  const glassFallback = {
+    backgroundColor: "rgba(1, 8, 4, 0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(184, 255, 207, 0.19)",
+    borderTopColor: "rgba(246,255,249,0.62)",
+  };
+
   return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#030305" />
+    <LiquidGlassProvider style={{ flex: 1 }}>
+      <SafeAreaView style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor="#020503" />
+        <LinearGradient
+          colors={["#020403", "#04170C", "#062011", "#020604"]}
+          locations={[0, 0.38, 0.68, 1]}
+          start={{ x: 0.12, y: 0 }}
+          end={{ x: 0.88, y: 1 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
 
-      {/* Ambient background orbs */}
-      <View style={styles.orbTop} />
-      <View style={styles.orbBottom} />
-      <View style={styles.orbMid} />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Brand Header */}
-        <View style={styles.header}>
-          <Text style={styles.logo}>VITRE</Text>
-          <Text style={styles.tagline}>Premium On-Device Downloader</Text>
-        </View>
-
-        {/* Glass Input Card */}
-        <View style={styles.glassPanel}>
-          <Text style={styles.label}>Media Link</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.input}
-              placeholder="Paste YouTube • TikTok • Instagram..."
-              placeholderTextColor="rgba(255,255,255,0.28)"
-              value={url}
-              onChangeText={setUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              selectionColor="#60A5FA"
-            />
-            <TouchableOpacity
-              style={styles.pasteChip}
-              onPress={handlePaste}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.pasteChipText}>Paste</Text>
-            </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.logo}>VITRE</Text>
+            <Text style={styles.tagline}>
+              {isLiquidGlassSupported
+                ? "Native Liquid Glass Engine"
+                : "Premium On-Device Downloader"}
+            </Text>
           </View>
 
-          <TouchableOpacity
-            style={[
-              styles.analyzeBtn,
-              (loading || downloading) && styles.btnDisabled,
-            ]}
-            onPress={handleFetch}
-            disabled={loading || downloading}
-            activeOpacity={0.85}
+          {/* Input Glass Card */}
+          <LiquidGlassView
+            style={[styles.glassCard, !isLiquidGlassSupported && glassFallback]}
+            interactive
+            intensity="medium"
           >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.analyzeBtnText}>Analyze Video</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Media Result Card */}
-        {mediaInfo && (
-          <View style={styles.glassPanel}>
-            {/* Top highlight line */}
-            <View style={styles.panelHighlight} />
-
-            {mediaInfo.thumbnail ? (
-              <View style={styles.thumbWrapper}>
-                <Image
-                  source={{ uri: mediaInfo.thumbnail }}
-                  style={styles.thumbnail}
-                  resizeMode="cover"
-                />
-                <View style={styles.thumbOverlay} />
-              </View>
-            ) : null}
-
-            <Text style={styles.mediaTitle} numberOfLines={2}>
-              {mediaInfo.title}
-            </Text>
-
-            <View style={styles.metaRow}>
-              <View style={styles.platformPill}>
-                <Text style={styles.platformPillText}>
-                  {mediaInfo.extractor.toUpperCase()}
-                </Text>
-              </View>
+            <Text style={styles.label}>Media Link</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.input}
+                placeholder="Paste YouTube • TikTok • Instagram..."
+                placeholderTextColor="rgba(245,255,249,0.42)"
+                value={url}
+                onChangeText={setUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+                selectionColor="#66F3A0"
+              />
+              <TouchableOpacity
+                style={styles.pasteChip}
+                onPress={handlePaste}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.pasteChipText}>Paste</Text>
+              </TouchableOpacity>
             </View>
-
-            <Text style={styles.sectionLabel}>Quality & Format</Text>
-
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={mediaInfo.formats.slice(0, 10)}
-              keyExtractor={(item) => item.format_id}
-              contentContainerStyle={styles.formatList}
-              renderItem={({ item }) => {
-                const active = selectedFormat === item.format_id;
-                const sizeLabel = formatFileSize(item.filesize);
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.formatChip,
-                      active && styles.formatChipActive,
-                    ]}
-                    onPress={() => setSelectedFormat(item.format_id)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.formatChipText,
-                        active && styles.formatChipTextActive,
-                      ]}
-                    >
-                      {item.resolution}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.formatChipSub,
-                        active && styles.formatChipSubActive,
-                      ]}
-                    >
-                      {item.ext.toUpperCase()}
-                      {sizeLabel ? ` · ${sizeLabel}` : ""}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-
-            {/* Premium Progress */}
-            {downloading && (
-              <View style={styles.progressBlock}>
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${Math.min(progress.percent, 100)}%` },
-                    ]}
-                  />
-                </View>
-                <View style={styles.progressMeta}>
-                  <Text style={styles.progressPercent}>
-                    {progress.percent.toFixed(0)}%
-                  </Text>
-                  <Text style={styles.progressSpeed}>
-                    {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
-                  </Text>
-                </View>
-              </View>
-            )}
 
             <TouchableOpacity
               style={[
-                styles.downloadBtn,
-                downloading && styles.btnDisabled,
+                styles.analyzeBtn,
+                (loading || downloading) && styles.btnDisabled,
               ]}
-              onPress={handleDownload}
-              disabled={downloading}
+              onPress={handleFetch}
+              disabled={loading || downloading}
               activeOpacity={0.85}
             >
-              {downloading ? (
+              {loading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.downloadBtnText}>Save to Device</Text>
+                <Text style={styles.analyzeBtnText}>Analyze Video</Text>
               )}
             </TouchableOpacity>
-          </View>
-        )}
+          </LiquidGlassView>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </SafeAreaView>
+          {/* Media Result */}
+          {mediaInfo && (
+            <LiquidGlassView
+              style={[
+                styles.glassCard,
+                !isLiquidGlassSupported && glassFallback,
+              ]}
+              interactive
+              intensity="medium"
+            >
+              {mediaInfo.thumbnail ? (
+                <View style={styles.thumbWrapper}>
+                  <Image
+                    source={{ uri: mediaInfo.thumbnail }}
+                    style={styles.thumbnail}
+                    resizeMode="cover"
+                  />
+                </View>
+              ) : null}
+
+              <Text style={styles.mediaTitle} numberOfLines={2}>
+                {mediaInfo.title}
+              </Text>
+
+              <View style={styles.metaRow}>
+                <View style={styles.platformPill}>
+                  <Text style={styles.platformPillText}>
+                    {mediaInfo.extractor.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.sectionLabel}>Quality & Format</Text>
+
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={mediaInfo.formats.slice(0, 10)}
+                keyExtractor={(item) => item.format_id}
+                contentContainerStyle={styles.formatList}
+                renderItem={({ item }) => {
+                  const active = selectedFormat === item.format_id;
+                  const sizeLabel = formatFileSize(item.filesize);
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.formatChip,
+                        active && styles.formatChipActive,
+                      ]}
+                      onPress={() => setSelectedFormat(item.format_id)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.formatChipText,
+                          active && styles.formatChipTextActive,
+                        ]}
+                      >
+                        {item.resolution}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.formatChipSub,
+                          active && styles.formatChipSubActive,
+                        ]}
+                      >
+                        {item.ext.toUpperCase()}
+                        {sizeLabel ? ` · ${sizeLabel}` : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+
+              {downloading && (
+                <View style={styles.progressBlock}>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${Math.min(progress.percent, 100)}%` },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.progressMeta}>
+                    <Text style={styles.progressPercent}>
+                      {progress.percent.toFixed(0)}%
+                    </Text>
+                    <Text style={styles.progressSpeed}>
+                      {(progress.speed / 1024 / 1024).toFixed(2)} MB/s
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.downloadBtn,
+                  downloading && styles.btnDisabled,
+                ]}
+                onPress={handleDownload}
+                disabled={downloading}
+                activeOpacity={0.85}
+              >
+                {downloading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.downloadBtnText}>Save to Device</Text>
+                )}
+              </TouchableOpacity>
+            </LiquidGlassView>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </SafeAreaView>
+    </LiquidGlassProvider>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#030305",
+    backgroundColor: "transparent",
   },
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 30,
   },
-
-  // Ambient orbs
-  orbTop: {
-    position: "absolute",
-    top: -120,
-    left: -80,
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: "rgba(59, 130, 246, 0.11)",
-  },
-  orbBottom: {
-    position: "absolute",
-    bottom: -140,
-    right: -100,
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    backgroundColor: "rgba(124, 58, 237, 0.09)",
-  },
-  orbMid: {
-    position: "absolute",
-    top: "42%",
-    right: -60,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(14, 165, 233, 0.06)",
-  },
-
-  // Header
   header: {
     marginBottom: 28,
     marginTop: 12,
@@ -396,45 +393,24 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: 13,
-    color: "rgba(255,255,255,0.42)",
+    color: "rgba(236,255,243,0.70)",
     marginTop: 6,
     letterSpacing: 0.6,
   },
-
-  // Glass Panel
-  glassPanel: {
-    backgroundColor: "rgba(255,255,255,0.045)",
+  glassCard: {
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
     padding: 20,
     marginBottom: 20,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.45,
-    shadowRadius: 28,
-    elevation: 14,
   },
-  panelHighlight: {
-    position: "absolute",
-    top: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.18)",
-  },
-
   label: {
     fontSize: 12,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(237,255,243,0.72)",
     letterSpacing: 0.8,
     marginBottom: 10,
     textTransform: "uppercase",
   },
-
-  // Input
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -465,22 +441,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-
-  // Analyze Button
   analyzeBtn: {
     marginTop: 16,
     height: 52,
     borderRadius: 16,
-    backgroundColor: "rgba(59, 130, 246, 0.9)",
+    backgroundColor: "rgba(4, 74, 35, 0.92)",
     borderWidth: 1,
-    borderColor: "rgba(147, 197, 253, 0.35)",
+    borderColor: "rgba(140, 255, 179, 0.52)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
-    elevation: 10,
   },
   analyzeBtnText: {
     color: "#FFFFFF",
@@ -491,8 +460,6 @@ const styles = StyleSheet.create({
   btnDisabled: {
     opacity: 0.5,
   },
-
-  // Thumbnail
   thumbWrapper: {
     borderRadius: 16,
     overflow: "hidden",
@@ -503,11 +470,6 @@ const styles = StyleSheet.create({
     height: 190,
     backgroundColor: "rgba(255,255,255,0.04)",
   },
-  thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.15)",
-  },
-
   mediaTitle: {
     color: "#FFFFFF",
     fontSize: 17,
@@ -515,7 +477,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 12,
   },
-
   metaRow: {
     flexDirection: "row",
     marginBottom: 18,
@@ -534,16 +495,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
   },
-
   sectionLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.42)",
+    color: "rgba(236,255,243,0.70)",
     letterSpacing: 0.7,
     marginBottom: 12,
     textTransform: "uppercase",
   },
-
   formatList: {
     paddingBottom: 4,
   },
@@ -559,8 +518,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   formatChipActive: {
-    backgroundColor: "rgba(59, 130, 246, 0.28)",
-    borderColor: "rgba(147, 197, 253, 0.5)",
+    backgroundColor: "rgba(8, 105, 49, 0.42)",
+    borderColor: "rgba(140, 255, 179, 0.62)",
   },
   formatChipText: {
     color: "rgba(255,255,255,0.75)",
@@ -571,15 +530,13 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   formatChipSub: {
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(226,243,232,0.62)",
     fontSize: 11,
     marginTop: 3,
   },
   formatChipSubActive: {
     color: "rgba(255,255,255,0.8)",
   },
-
-  // Progress
   progressBlock: {
     marginTop: 20,
     marginBottom: 4,
@@ -592,7 +549,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#3B82F6",
+    backgroundColor: "#35E887",
     borderRadius: 4,
   },
   progressMeta: {
@@ -606,26 +563,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   progressSpeed: {
-    color: "rgba(255,255,255,0.5)",
+    color: "rgba(228,241,232,0.68)",
     fontSize: 13,
     fontWeight: "500",
   },
-
-  // Download Button
   downloadBtn: {
     marginTop: 18,
     height: 52,
     borderRadius: 16,
-    backgroundColor: "rgba(37, 99, 235, 0.95)",
+    backgroundColor: "rgba(4, 91, 42, 0.94)",
     borderWidth: 1,
-    borderColor: "rgba(147, 197, 253, 0.3)",
+    borderColor: "rgba(140, 255, 179, 0.52)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#2563EB",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 10,
   },
   downloadBtnText: {
     color: "#FFFFFF",
