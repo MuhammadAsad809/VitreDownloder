@@ -7,6 +7,7 @@
     "start": "react-native start"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^1.23.1",
     "@react-native-community/blur": "^4.4.1",
     "liquid-glass-kit": "file:./liquid-glass-kit",
     "react": "18.2.0",
