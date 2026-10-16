@@ -1,7 +1,31 @@
+# Dependencies
 node_modules/
 android/node_modules/
-android/.gradle/
-android/local.properties
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+
+# Android / Gradle
+.gradle/
+build/
 android/app/build/
 android/build/
+android/.gradle/
+android/local.properties
+local.properties
+*.apk
+*.aab
 *.iml
+
+# Metro
+.metro-health-check*
+
+# OS / Editor
+.DS_Store
+*.swp
+*.swo

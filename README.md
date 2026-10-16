@@ -1,75 +1,114 @@
-# Vitre Downloader (React Native + Chaquopy + yt-dlp)
+# Vitre Downloader (Android & Python CLI)
 
-A 100% on-device, serverless Android media downloader. It embeds Python 3.11 with `yt-dlp` directly inside the Android process via **Chaquopy**, allowing direct extraction and downloads from YouTube, Instagram, TikTok, and other platforms without relying on an external backend.
-
----
-
-## Architecture
-
-- **Frontend:** React Native (TypeScript) with a dark-mode theme, live clipboard paste, video card preview, format selector, and download progress bar.
-- **Native Bridge:** Kotlin Native Module (`PythonBridgeModule.kt`) executing Python functions asynchronously on coroutine background threads (`Dispatchers.IO`).
-- **Python Engine:** Embedded Python 3.11 running `yt-dlp` with `certifi` (`downloader.py`).
-- **Storage:** Downloads save directly to the device's public `Downloads/Vitre/` directory.
-- **CI / Build:** GitHub Actions workflow (`.github/workflows/build-apk.yml`) that compiles the APK in the cloud.
+An advanced, modern video and audio downloader powered by **React Native 0.73.6**, **Tamagui**, **Liquid Glass**, **Python 3**, **yt-dlp**, and **FFmpeg**.
 
 ---
 
-## How to Build the APK using GitHub Actions
+## Features
 
-You don't need Android Studio or Gradle installed on your phone. You can build the APK directly using GitHub:
-
-1. **Create a GitHub Repository:**
-   Create a new GitHub repository (public or private).
-
-2. **Push this project to GitHub:**
-   ```bash
-   cd vitre-app
-   git init
-   git add .
-   git commit -m "Initial commit of Vitre React Native + Chaquopy app"
-   git branch -M main
-   git remote add origin https://github.com/<YOUR_USERNAME>/<YOUR_REPO_NAME>.git
-   git push -u origin main
-   ```
-
-3. **Download the APK:**
-   - Go to your repository on GitHub.
-   - Click the **Actions** tab.
-   - Click the **Build Android APK (Chaquopy + yt-dlp)** workflow run.
-   - Under **Artifacts** at the bottom of the run summary, download `vitre-app-debug-apk`.
-   - Install the resulting `app-debug.apk` onto your Android phone.
+- **Multi-Platform Video Extraction**: Fast metadata analysis for YouTube, Instagram Reels, TikTok, and web video sources with no paid APIs, no tracking cookies, and no remote backend servers.
+- **Selective Quality & Format Downloads**:
+  - Full HD (1080p, 720p, 480p, 360p) with automatic stream merging via FFmpeg.
+  - High-bitrate audio extraction and conversion to MP3 (128k, 192k, 320k).
+  - Cover art and thumbnail image extraction.
+- **Polished Glass & Tamagui UI**:
+  - **Home**: Real-time URL analyzer, quality preset chips, and animated download progress.
+  - **Downloads**: Persistent download history, instant search, category filtering (Videos, Audio, Images), and file actions (Open, Share, Copy Path, Delete).
+  - **Settings**: Default quality preferences, storage directory inspector, dark emerald theme accents, and engine health diagnostics.
+- **Standalone Termux & Linux CLI**: Fully functional Python package and command-line tool runnable directly inside Termux or desktop Linux.
+- **Reliable Storage & File Safety**:
+  - Organized folder structure: `/storage/emulated/0/Download/Vitre/Videos` and `.../Audio`.
+  - Non-conflicting filename resolution (never accidentally overwrites existing files).
+  - Full output verification (checks file existence and playable byte threshold).
 
 ---
 
-## Project Structure
+## Android App (React Native + Chaquopy)
 
+The mobile app runs yt-dlp on-device through Chaquopy (Embedded Python 3.11):
+- **Native Bridge**: `PythonBridgeModule.kt` manages background coroutines and emits download progress events (`onDownloadProgress`).
+- **Persistence**: `@react-native-async-storage/async-storage` retains completed downloads and user configuration across app restarts.
+- **Glass Aesthetics**: Translucent surfaces, dark emerald palette, and ambient glowing backgrounds.
+
+---
+
+## Termux Installation Guide
+
+To run the Python engine and CLI directly on your Android phone using Termux:
+
+### 1. Update Packages & Set Up Storage
+```bash
+pkg update
+termux-setup-storage
 ```
-vitre-app/
-├── .github/
-│   └── workflows/
-│       └── build-apk.yml            # CI workflow to build APK
-├── android/
-│   ├── app/
-│   │   ├── build.gradle             # Chaquopy + Python 3.11 + yt-dlp setup
-│   │   ├── src/main/
-│   │   │   ├── AndroidManifest.xml  # Permissions (Storage & Network)
-│   │   │   ├── java/com/vitre/downloader/
-│   │   │   │   ├── MainActivity.kt
-│   │   │   │   ├── MainApplication.kt
-│   │   │   │   ├── PythonBridgeModule.kt   # Bridge module
-│   │   │   │   └── PythonBridgePackage.kt  # Package registry
-│   │   │   └── python/
-│   │   │       └── downloader.py           # yt-dlp extraction & download
-│   │   └── proguard-rules.pro
-│   ├── build.gradle                 # Chaquopy maven & plugin configuration
-│   ├── gradle.properties
-│   ├── gradlew
-│   └── settings.gradle
-├── src/
-│   └── App.tsx                      # React Native UI
-├── package.json
-├── index.js
-├── babel.config.js
-├── metro.config.js
-└── tsconfig.json
+> [!NOTE]
+> Tap **Allow** when the system prompt requests storage access. This links `/storage/emulated/0` to `~/storage/shared`.
+
+### 2. Install Core Dependencies
+```bash
+pkg install python ffmpeg aria2 git
 ```
+
+### 3. Install Python Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## Python CLI Usage & Examples
+
+You can execute the Vitre CLI using `python3 -m vitre_downloader.cli`:
+
+### 1. System Diagnostics
+Check whether FFmpeg, FFprobe, and aria2c are detected, and inspect default storage paths:
+```bash
+python3 -m vitre_downloader.cli info
+```
+
+### 2. Analyze Media URL
+Inspect video title, duration, uploader, thumbnail, and all available stream formats:
+```bash
+python3 -m vitre_downloader.cli analyze "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+```
+
+### 3. Download Video (Quality Presets)
+```bash
+# Best available quality (merges video + audio)
+python3 -m vitre_downloader.cli download "https://www.youtube.com/watch?v=jNQXAC9IVRw" --quality best
+
+# 720p HD Video
+python3 -m vitre_downloader.cli download "https://www.youtube.com/watch?v=jNQXAC9IVRw" -q 720
+
+# Accelerated download with aria2c
+python3 -m vitre_downloader.cli download "https://www.youtube.com/watch?v=jNQXAC9IVRw" --aria2
+```
+
+### 4. Extract Audio and Convert to MP3
+```bash
+# Convert to 192k MP3 (default)
+python3 -m vitre_downloader.cli audio "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+
+# Convert to 320k High-Definition MP3
+python3 -m vitre_downloader.cli audio "https://www.youtube.com/watch?v=jNQXAC9IVRw" -b 320k
+```
+
+---
+
+## Running Unit Tests
+
+Run the test suite covering URL cleaning, filename sanitization, collision handling, and tool detection:
+```bash
+python3 -m unittest tests/test_vitre.py
+```
+
+---
+
+## Troubleshooting
+
+- **FFmpeg not found**:
+  Run `pkg install ffmpeg`. Stream merging and MP3 conversion require FFmpeg.
+- **Permission Denied when saving to storage**:
+  Run `termux-setup-storage` and ensure Termux has storage permission in Android App Info settings.
+- **YouTube bot check / Sign in to confirm**:
+  YouTube occasionally rate-limits IP addresses or Wi-Fi subnets. Switch between Wi-Fi and mobile data or retry after a few minutes.

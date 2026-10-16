@@ -9,10 +9,12 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/blur": "^4.4.1",
+    "@tamagui/core": "1.107.0",
     "liquid-glass-kit": "file:./liquid-glass-kit",
     "react": "18.2.0",
     "react-native": "0.73.6",
-    "react-native-linear-gradient": "^2.8.3"
+    "react-native-linear-gradient": "^2.8.3",
+    "tamagui": "1.107.0"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

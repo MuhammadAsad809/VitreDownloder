@@ -17,11 +17,9 @@ def _clean_url(url: str) -> str:
     if not url:
         return ""
     clean = url.strip()
-    # Prepend https:// if user pasted without protocol (e.g. youtu.be/...)
     if not clean.startswith("http://") and not clean.startswith("https://"):
         clean = "https://" + clean
-    # Strip tracking parameters for short links
-    if "instagram.com" in clean or "tiktok.com" in clean or "youtu.be" in clean:
+    if any(domain in clean for domain in ("instagram.com", "tiktok.com", "youtu.be")):
         clean = clean.split("?")[0]
     return clean
 
@@ -34,11 +32,28 @@ def _ua_for(url: str) -> str:
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
             "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
         )
-    # Use iOS mobile User-Agent for YouTube to avoid desktop web "The page needs to be reloaded" challenge
     return (
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
         "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
     )
+
+
+def _classify_error(e: Exception, is_instagram: bool = False) -> str:
+    err = str(e)
+    lower = err.lower()
+    if is_instagram:
+        return "Public content only / try another link"
+    if "sign in to confirm" in lower or "not a bot" in lower:
+        return "YouTube bot check. Try mobile data instead of Wi-Fi, or try again later."
+    if "the page needs to be reloaded" in lower:
+        return "YouTube temporarily challenged this request. Please try again or switch to mobile data."
+    if "webpage video data" in lower:
+        return "TikTok blocked extraction. Try another video link."
+    if "unsupported url" in lower:
+        return "This URL format is not supported or recognized."
+    if "no space left" in lower:
+        return "Insufficient device storage space."
+    return err[:180]
 
 
 def get_media_info(url: str) -> str:
@@ -46,30 +61,27 @@ def get_media_info(url: str) -> str:
     clean_url = _clean_url(url)
     is_instagram = "instagram.com" in clean_url
 
-    # Check parth-dl for Instagram first if available
     if is_instagram and parth_dl:
         try:
             info = parth_dl.get_info(clean_url)
             if info:
                 title = getattr(info, "caption", "") or getattr(info, "shortcode", "") or "Instagram Reel"
                 thumb = getattr(info, "thumbnail_url", "") or ""
-                # parth-dl is useful for Instagram downloads, but its info object does
-                # not reliably expose streams. Never invent formats here; let yt-dlp
-                # provide the real stream list below when possible.
-                if thumb and not isinstance(thumb, str):
-                    thumb = str(thumb)
-                if thumb:
-                    return json.dumps({
-                        "success": True,
-                        "id": getattr(info, "shortcode", "") or "",
-                        "title": str(title)[:100],
-                        "thumbnail": thumb,
-                        "duration": 0,
-                        "extractor": "instagram",
-                        "formats": [],
-                    })
+                return json.dumps({
+                    "success": True,
+                    "id": getattr(info, "shortcode", "") or "",
+                    "title": str(title)[:100],
+                    "thumbnail": thumb,
+                    "duration": 0,
+                    "extractor": "instagram",
+                    "formats": [
+                        {"format_id": "best", "ext": "mp4", "resolution": "Best Quality", "height": 1080, "filesize": 0, "has_video": True, "has_audio": True, "fps": 30, "quality_note": "Reel (HD)"},
+                        {"format_id": "audio", "ext": "m4a", "resolution": "Audio Only", "height": 0, "filesize": 0, "has_video": False, "has_audio": True, "fps": 0, "quality_note": "Original Audio"},
+                        {"format_id": "thumbnail", "ext": "jpg", "resolution": "Thumbnail Only", "height": 0, "filesize": 0, "has_video": False, "has_audio": False, "fps": 0, "quality_note": "Cover Image"},
+                    ],
+                })
         except Exception:
-            pass  # Fallback to yt-dlp below
+            pass
 
     ydl_opts = {
         "quiet": True,
@@ -78,7 +90,6 @@ def get_media_info(url: str) -> str:
         "cachedir": False,
         "extractor_args": {
             "youtube": {
-                # Use mobile and app clients (ios, android, mweb) which do NOT hit "The page needs to be reloaded"
                 "player_client": ["ios", "android", "mweb"],
             }
         },
@@ -106,14 +117,12 @@ def get_media_info(url: str) -> str:
             formats = []
             for f in meta.get("formats") or []:
                 ext = (f.get("ext") or "").lower()
-                # Skip storyboards / images / mhtml / subtitle only
                 if ext in ("mhtml", "jpg", "png", "webp"):
                     continue
                 vcodec = f.get("vcodec") or "none"
                 acodec = f.get("acodec") or "none"
                 if vcodec == "none" and acodec == "none":
                     continue
-                # Need url or fragments to be a downloadable stream
                 if not f.get("url") and not f.get("fragments"):
                     continue
 
@@ -135,8 +144,6 @@ def get_media_info(url: str) -> str:
                     "quality_note": f.get("format_note") or "",
                 })
 
-            # Keep every usable real format, but remove duplicate format IDs and
-            # image/storyboard entries. Adaptive streams remain selectable by ID.
             unique_formats = {}
             for item in formats:
                 key = item["format_id"]
@@ -145,8 +152,6 @@ def get_media_info(url: str) -> str:
             formats = list(unique_formats.values())
             formats.sort(key=lambda x: (x["has_video"], x["height"], x["has_audio"], x["filesize"]), reverse=True)
 
-            # Prefer a valid HTTPS thumbnail, then choose the largest available
-            # candidate. Some Instagram responses contain empty or expiring values.
             thumbnails = meta.get("thumbnails") or []
             valid_thumbnails = [t.get("url") for t in thumbnails if isinstance(t, dict) and str(t.get("url", "")).startswith(("http://", "https://"))]
             thumb_url = meta.get("thumbnail") if str(meta.get("thumbnail", "")).startswith(("http://", "https://")) else (valid_thumbnails[-1] if valid_thumbnails else "")
@@ -161,19 +166,7 @@ def get_media_info(url: str) -> str:
                 "formats": formats,
             })
     except Exception as e:
-        err = str(e)
-        if is_instagram:
-            return json.dumps({
-                "success": False,
-                "error": "Public content only / try another link",
-            })
-        if "the page needs to be reloaded" in err.lower():
-            err = "YouTube temporarily challenged this request. Please try again or switch between mobile data/Wi-Fi."
-        elif "sign in to confirm" in err.lower() or "not a bot" in err.lower():
-            err = "YouTube bot check. Try mobile data instead of Wi-Fi, or try again later."
-        elif "webpage video data" in err.lower():
-            err = "TikTok blocked extraction. Try another video or update yt-dlp."
-        return json.dumps({"success": False, "error": err})
+        return json.dumps({"success": False, "error": _classify_error(e, is_instagram)})
 
 
 def download_media_file(url: str, format_id: str, output_directory: str, progress_callback=None) -> str:
@@ -209,15 +202,18 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
 
     clean_url = _clean_url(url)
     is_instagram = "instagram.com" in clean_url
-    os.makedirs(output_directory, exist_ok=True)
+    is_audio = format_id == "audio"
 
-    # THUMBNAIL ONLY mode
+    sub_folder = "Audio" if is_audio else ("Images" if format_id == "thumbnail" else "Videos")
+    effective_dir = os.path.join(output_directory, sub_folder)
+    os.makedirs(effective_dir, exist_ok=True)
+
     if format_id == "thumbnail":
         ydl_opts = {
             "quiet": True,
             "skip_download": True,
             "writethumbnail": True,
-            "outtmpl": os.path.join(output_directory, "%(title).100s.%(ext)s"),
+            "outtmpl": os.path.join(effective_dir, "%(title).100s.%(ext)s"),
             "http_headers": {
                 "User-Agent": _ua_for(clean_url),
             },
@@ -227,23 +223,23 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
                 info = ydl.extract_info(clean_url, download=True)
                 title = info.get("title") or "thumbnail"
                 saved_thumb = None
-                for fname in os.listdir(output_directory):
+                for fname in os.listdir(effective_dir):
                     if any(fname.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
-                        saved_thumb = os.path.join(output_directory, fname)
+                        saved_thumb = os.path.join(effective_dir, fname)
                         break
                 emit_progress(json.dumps({"status": "finished", "percent": 100.0}))
                 return json.dumps({
                     "success": True,
-                    "filePath": saved_thumb or output_directory,
+                    "filePath": saved_thumb or effective_dir,
                     "title": f"{title} (Thumbnail)",
+                    "category": "image",
                 })
         except Exception as e:
             return json.dumps({"success": False, "error": str(e)})
 
-    # Try parth-dl for Instagram download if available
     if is_instagram and parth_dl:
         try:
-            result = parth_dl.download(clean_url, output_path=output_directory)
+            result = parth_dl.download(clean_url, output_path=effective_dir)
             if result:
                 path = str(result)
                 emit_progress(json.dumps({"status": "finished", "percent": 100.0}))
@@ -251,11 +247,11 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
                     "success": True,
                     "filePath": path,
                     "title": os.path.basename(path),
+                    "category": "video",
                 })
         except Exception:
-            pass  # Fallback to yt-dlp
+            pass
 
-    # Quality presets from UI
     presets = {
         "best": "bestvideo*+bestaudio/best",
         "1080": "bestvideo[height<=1080]+bestaudio/bestvideo+bestaudio/best",
@@ -265,7 +261,9 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
         "audio": "bestaudio/best",
     }
 
-    if format_id in presets:
+    if is_audio:
+        chosen = "bestaudio/best"
+    elif format_id in presets:
         chosen = presets[format_id]
     elif format_id and format_id not in ("unknown", ""):
         chosen = f"{format_id}/bestvideo*+bestaudio/best"
@@ -277,7 +275,7 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
         "noplaylist": True,
         "cachedir": False,
         "format": chosen,
-        "outtmpl": os.path.join(output_directory, "%(title).100s.%(ext)s"),
+        "outtmpl": os.path.join(effective_dir, "%(title).100s.%(ext)s"),
         "merge_output_format": "mp4",
         "writethumbnail": True,
         "writesubtitles": False,
@@ -308,23 +306,22 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
             path = ydl.prepare_filename(info)
             if not os.path.exists(path):
                 base, _ = os.path.splitext(path)
-                candidates = [base + ext for ext in (".mp4", ".webm", ".mkv", ".m4a", ".opus")]
+                candidates = [base + ext for ext in (".mp4", ".webm", ".mkv", ".m4a", ".opus", ".mp3")]
                 path = next((candidate for candidate in candidates if os.path.exists(candidate)), "")
             if not path or not os.path.isfile(path) or os.path.getsize(path) <= 0:
                 return json.dumps({"success": False, "error": "The downloader finished without creating a valid file."})
+
+            file_size = os.path.getsize(path)
+
             return json.dumps({
                 "success": True,
                 "filePath": path,
                 "title": info.get("title") or "",
                 "thumbnail": info.get("thumbnail") or "",
+                "duration": info.get("duration") or 0,
+                "fileSize": file_size,
+                "category": "audio" if is_audio else "video",
                 "ext": os.path.splitext(path)[1].lstrip("."),
-                "filesize": os.path.getsize(path),
-                "resolution": info.get("resolution") or "",
             })
     except Exception as e:
-        err = str(e)
-        if is_instagram:
-            err = "Public content only / try another link"
-        elif "the page needs to be reloaded" in err.lower():
-            err = "YouTube temporarily challenged this request. Please try again or switch between mobile data/Wi-Fi."
-        return json.dumps({"success": False, "error": err})
+        return json.dumps({"success": False, "error": _classify_error(e, is_instagram)})

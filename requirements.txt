@@ -1,0 +1,4 @@
+# Vitre Downloader Requirements
+# Python 3.10+
+yt-dlp>=2026.8.19
+certifi>=2026.7.22
