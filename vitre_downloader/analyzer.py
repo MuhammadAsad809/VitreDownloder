@@ -9,6 +9,7 @@ import yt_dlp
 
 from .utils import clean_url, format_bytes, format_duration
 from .errors import InvalidURLError, classify_error
+from .cookies import configure_ydl_anti_bot_opts
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
@@ -72,6 +73,8 @@ class MediaAnalyzer:
                 "Referer": "https://www.instagram.com/",
             })
 
+        configure_ydl_anti_bot_opts(ydl_opts, cleaned_url)
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 raw_info = ydl.extract_info(cleaned_url, download=False)
@@ -80,6 +83,17 @@ class MediaAnalyzer:
 
                 return self._parse_metadata(raw_info, cleaned_url)
         except Exception as e:
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("bot", "429", "sign in", "page needs to be reloaded", "format is not available")):
+                # Invalidate stale cookies, fetch a fresh visitor session and retry once
+                configure_ydl_anti_bot_opts(ydl_opts, cleaned_url, force_refresh_cookies=True)
+                try:
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl_retry:
+                        raw_info = ydl_retry.extract_info(cleaned_url, download=False)
+                        if raw_info:
+                            return self._parse_metadata(raw_info, cleaned_url)
+                except Exception:
+                    pass
             raise classify_error(e, cleaned_url)
 
     def _parse_metadata(self, meta: Dict[str, Any], url: str) -> Dict[str, Any]:

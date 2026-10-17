@@ -1,6 +1,9 @@
 import json
 import os
+import time
 import shutil
+import urllib.request
+import http.cookiejar
 import certifi
 import yt_dlp
 
@@ -11,6 +14,73 @@ try:
     import parth_dl
 except ImportError:
     parth_dl = None
+
+
+def _get_active_cookie_file(force_refresh: bool = False) -> str:
+    """
+    Returns path to an active cookie file (user-supplied cookies.txt or auto-generated guest session).
+    """
+    # 1. User-supplied cookies take precedence
+    custom_candidates = [
+        "/storage/emulated/0/Download/Vitre/cookies.txt",
+        "/storage/emulated/0/Download/cookies.txt",
+        "/storage/emulated/0/Documents/cookies.txt",
+        os.path.join(os.environ.get("HOME", "/data/user/0/com.agy/files"), "cookies.txt"),
+    ]
+    if not force_refresh:
+        for p in custom_candidates:
+            if os.path.exists(p) and os.path.isfile(p) and os.path.getsize(p) > 50:
+                return p
+
+    # 2. Automated guest visitor session cookie cache
+    cache_dir = os.path.join(os.environ.get("HOME", "/data/user/0/com.agy/files"), ".vitre")
+    os.makedirs(cache_dir, exist_ok=True)
+    guest_path = os.path.join(cache_dir, "yt_cookies.txt")
+
+    needs_refresh = (
+        force_refresh
+        or not os.path.exists(guest_path)
+        or os.path.getsize(guest_path) < 50
+        or (time.time() - os.path.getmtime(guest_path)) > 86400
+    )
+
+    if needs_refresh:
+        try:
+            jar = http.cookiejar.MozillaCookieJar(guest_path)
+            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+            req = urllib.request.Request(
+                "https://www.youtube.com",
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/123.0.0.0 Safari/537.36"
+                    ),
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+            )
+            with opener.open(req, timeout=10) as resp:
+                jar.save(ignore_discard=True, ignore_expires=True)
+        except Exception:
+            pass
+
+    if os.path.exists(guest_path) and os.path.getsize(guest_path) >= 50:
+        return guest_path
+    return ""
+
+
+def _configure_anti_bot(ydl_opts: dict, force_refresh: bool = False):
+    """Attach active cookie jar and JS challenge runtime to prevent bot checks."""
+    cookie_path = _get_active_cookie_file(force_refresh=force_refresh)
+    if cookie_path:
+        ydl_opts["cookiefile"] = cookie_path
+
+    node_bin = shutil.which("node") or "/data/user/0/com.agy/files/usr/bin/node"
+    if node_bin and os.path.exists(node_bin):
+        ydl_opts["js_runtimes"] = {"node": {}}
+        ydl_opts["remote_components"] = {"ejs:github"}
+
 
 
 def _clean_url(url: str) -> str:
@@ -118,63 +188,78 @@ def get_media_info(url: str) -> str:
             "Referer": "https://www.instagram.com/",
         })
 
+    _configure_anti_bot(ydl_opts)
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             meta = ydl.extract_info(clean_url, download=False)
             if not meta:
                 return json.dumps({"success": False, "error": "No media info found at this URL."})
+    except Exception as e:
+        err_str = str(e).lower()
+        if any(k in err_str for k in ("bot", "429", "sign in", "page needs to be reloaded")):
+            # Invalidate stale cookies, fetch a fresh visitor session and retry once
+            _configure_anti_bot(ydl_opts, force_refresh=True)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl_retry:
+                    meta = ydl_retry.extract_info(clean_url, download=False)
+            except Exception as e2:
+                return json.dumps({"success": False, "error": _classify_error(e2, is_instagram)})
+        else:
+            return json.dumps({"success": False, "error": _classify_error(e, is_instagram)})
 
-            formats = []
-            for f in meta.get("formats") or []:
-                ext = (f.get("ext") or "").lower()
-                if ext in ("mhtml", "jpg", "png", "webp"):
-                    continue
-                vcodec = f.get("vcodec") or "none"
-                acodec = f.get("acodec") or "none"
-                if vcodec == "none" and acodec == "none":
-                    continue
-                if not f.get("url") and not f.get("fragments"):
-                    continue
+    try:
+        formats = []
+        for f in meta.get("formats") or []:
+            ext = (f.get("ext") or "").lower()
+            if ext in ("mhtml", "jpg", "png", "webp"):
+                continue
+            vcodec = f.get("vcodec") or "none"
+            acodec = f.get("acodec") or "none"
+            if vcodec == "none" and acodec == "none":
+                continue
+            if not f.get("url") and not f.get("fragments"):
+                continue
 
-                height = f.get("height") or 0
-                width = f.get("width") or 0
-                has_video = vcodec != "none"
-                has_audio = acodec != "none"
-                res_label = f.get("resolution") or (f"{width}x{height}" if height else ("Audio" if has_audio else "unknown"))
+            height = f.get("height") or 0
+            width = f.get("width") or 0
+            has_video = vcodec != "none"
+            has_audio = acodec != "none"
+            res_label = f.get("resolution") or (f"{width}x{height}" if height else ("Audio" if has_audio else "unknown"))
 
-                formats.append({
-                    "format_id": str(f.get("format_id")),
-                    "ext": ext or "mp4",
-                    "resolution": res_label,
-                    "height": height,
-                    "filesize": f.get("filesize") or f.get("filesize_approx") or 0,
-                    "has_video": has_video,
-                    "has_audio": has_audio,
-                    "fps": f.get("fps") or 0,
-                    "quality_note": f.get("format_note") or "",
-                })
-
-            unique_formats = {}
-            for item in formats:
-                key = item["format_id"]
-                if key and (key not in unique_formats or item["filesize"] > unique_formats[key]["filesize"]):
-                    unique_formats[key] = item
-            formats = list(unique_formats.values())
-            formats.sort(key=lambda x: (x["has_video"], x["height"], x["has_audio"], x["filesize"]), reverse=True)
-
-            thumbnails = meta.get("thumbnails") or []
-            valid_thumbnails = [t.get("url") for t in thumbnails if isinstance(t, dict) and str(t.get("url", "")).startswith(("http://", "https://"))]
-            thumb_url = meta.get("thumbnail") if str(meta.get("thumbnail", "")).startswith(("http://", "https://")) else (valid_thumbnails[-1] if valid_thumbnails else "")
-
-            return json.dumps({
-                "success": True,
-                "id": meta.get("id") or "",
-                "title": meta.get("title") or "Untitled Media",
-                "thumbnail": thumb_url or "",
-                "duration": meta.get("duration") or 0,
-                "extractor": meta.get("extractor") or "",
-                "formats": formats,
+            formats.append({
+                "format_id": str(f.get("format_id")),
+                "ext": ext or "mp4",
+                "resolution": res_label,
+                "height": height,
+                "filesize": f.get("filesize") or f.get("filesize_approx") or 0,
+                "has_video": has_video,
+                "has_audio": has_audio,
+                "fps": f.get("fps") or 0,
+                "quality_note": f.get("format_note") or "",
             })
+
+        unique_formats = {}
+        for item in formats:
+            key = item["format_id"]
+            if key and (key not in unique_formats or item["filesize"] > unique_formats[key]["filesize"]):
+                unique_formats[key] = item
+        formats = list(unique_formats.values())
+        formats.sort(key=lambda x: (x["has_video"], x["height"], x["has_audio"], x["filesize"]), reverse=True)
+
+        thumbnails = meta.get("thumbnails") or []
+        valid_thumbnails = [t.get("url") for t in thumbnails if isinstance(t, dict) and str(t.get("url", "")).startswith(("http://", "https://"))]
+        thumb_url = meta.get("thumbnail") if str(meta.get("thumbnail", "")).startswith(("http://", "https://")) else (valid_thumbnails[-1] if valid_thumbnails else "")
+
+        return json.dumps({
+            "success": True,
+            "id": meta.get("id") or "",
+            "title": meta.get("title") or "Untitled Media",
+            "thumbnail": thumb_url or "",
+            "duration": meta.get("duration") or 0,
+            "extractor": meta.get("extractor") or "",
+            "formats": formats,
+        })
     except Exception as e:
         return json.dumps({"success": False, "error": _classify_error(e, is_instagram)})
 
@@ -307,14 +392,30 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
             "Referer": "https://www.instagram.com/",
         })
 
+    _configure_anti_bot(ydl_opts)
+
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(clean_url, download=True)
-            path = ydl.prepare_filename(info)
-            if not os.path.exists(path):
-                base, _ = os.path.splitext(path)
-                candidates = [base + ext for ext in (".mp4", ".webm", ".mkv", ".m4a", ".opus", ".mp3")]
-                path = next((candidate for candidate in candidates if os.path.exists(candidate)), "")
+    except Exception as e:
+        err_str = str(e).lower()
+        if any(k in err_str for k in ("bot", "429", "sign in", "page needs to be reloaded")):
+            # Invalidate stale cookies, fetch a fresh visitor session and retry once
+            _configure_anti_bot(ydl_opts, force_refresh=True)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl_retry:
+                    info = ydl_retry.extract_info(clean_url, download=True)
+            except Exception as e2:
+                return json.dumps({"success": False, "error": _classify_error(e2, is_instagram)})
+        else:
+            return json.dumps({"success": False, "error": _classify_error(e, is_instagram)})
+
+    try:
+        path = ydl.prepare_filename(info)
+        if not os.path.exists(path):
+            base, _ = os.path.splitext(path)
+            candidates = [base + ext for ext in (".mp4", ".webm", ".mkv", ".m4a", ".opus", ".mp3")]
+            path = next((candidate for candidate in candidates if os.path.exists(candidate)), "")
             if not path or not os.path.isfile(path) or os.path.getsize(path) <= 0:
                 return json.dumps({"success": False, "error": "The downloader finished without creating a valid file."})
 

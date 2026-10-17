@@ -134,70 +134,55 @@ class TestVitreDownloader(unittest.TestCase):
         Acceptance test: For YouTube video 'iw7h4C_N1ec',
         verify that 720p selects a 720p format and 1080p selects a 1080p format.
         """
-        import os
-        import shutil
-        import urllib.request
-        import http.cookiejar
+        from vitre_downloader.cookies import configure_ydl_anti_bot_opts, get_active_cookie_file
 
         url = "https://www.youtube.com/watch?v=iw7h4C_N1ec"
-        cookie_path = os.path.join(os.path.dirname(__file__), "test_cookies.txt")
-        if not os.path.exists(cookie_path) or os.path.getsize(cookie_path) < 50:
-            jar = http.cookiejar.MozillaCookieJar(cookie_path)
-            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-            req = urllib.request.Request("https://www.youtube.com", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-            try:
-                with opener.open(req, timeout=5) as resp:
-                    jar.save(ignore_discard=True, ignore_expires=True)
-            except Exception:
-                pass
+        cookie_file = get_active_cookie_file()
+        self.assertIsNotNone(cookie_file, "Active cookie file must be provided")
 
-        ydl_opts = {
-            "quiet": True,
-            "cachedir": False,
-        }
-        if os.path.exists(cookie_path) and os.path.getsize(cookie_path) >= 50:
-            ydl_opts["cookiefile"] = cookie_path
-        if shutil.which("node"):
-            ydl_opts["js_runtimes"] = {"node": {}}
+        ydl_opts = {"quiet": True, "cachedir": False}
+        configure_ydl_anti_bot_opts(ydl_opts, url)
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             meta = ydl.extract_info(url, download=False)
             formats = meta.get("formats", [])
 
-            # Check that formats are not artificially limited to 360p
-            available_heights = set(f.get("height") or 0 for f in formats if f.get("vcodec") != "none")
-            self.assertIn(720, available_heights, "720p must be present in available formats")
-            self.assertIn(1080, available_heights, "1080p must be present in available formats")
+        # Check that formats are not artificially limited to 360p
+        available_heights = set(f.get("height") or 0 for f in formats if f.get("vcodec") != "none")
+        self.assertIn(720, available_heights, "720p must be present in available formats")
+        self.assertIn(1080, available_heights, "1080p must be present in available formats")
 
-            # Test 720p selector
-            fmt_720 = build_format_selector("720")
-            opts_720 = {
-                "quiet": True,
-                "format": fmt_720,
-                "format_sort": ["res", "ext:mp4:m4a"],
-            }
-            with yt_dlp.YoutubeDL(opts_720) as ydl_720:
-                p_720 = ydl_720.process_ie_result(dict(meta), download=False)
-                req_720 = p_720.get("requested_formats")
-                self.assertIsNotNone(req_720, "720p selection must request video+audio streams")
-                self.assertEqual(len(req_720), 2, "Must request both video and audio stream")
-                self.assertEqual(req_720[0].get("height"), 720, "Selected video stream must be 720p")
-                self.assertTrue(req_720[1].get("acodec") != "none", "Second stream must be audio")
+        # Test 720p selector
+        fmt_720 = build_format_selector("720")
+        opts_720 = {
+            "quiet": True,
+            "format": fmt_720,
+            "format_sort": ["res", "ext:mp4:m4a"],
+        }
+        configure_ydl_anti_bot_opts(opts_720, url)
+        with yt_dlp.YoutubeDL(opts_720) as ydl_720:
+            p_720 = ydl_720.process_ie_result(dict(meta), download=False)
+            req_720 = p_720.get("requested_formats")
+            self.assertIsNotNone(req_720, "720p selection must request video+audio streams")
+            self.assertEqual(len(req_720), 2, "Must request both video and audio stream")
+            self.assertEqual(req_720[0].get("height"), 720, "Selected video stream must be 720p")
+            self.assertTrue(req_720[1].get("acodec") != "none", "Second stream must be audio")
 
-            # Test 1080p selector
-            fmt_1080 = build_format_selector("1080")
-            opts_1080 = {
-                "quiet": True,
-                "format": fmt_1080,
-                "format_sort": ["res", "ext:mp4:m4a"],
-            }
-            with yt_dlp.YoutubeDL(opts_1080) as ydl_1080:
-                p_1080 = ydl_1080.process_ie_result(dict(meta), download=False)
-                req_1080 = p_1080.get("requested_formats")
-                self.assertIsNotNone(req_1080, "1080p selection must request video+audio streams")
-                self.assertEqual(len(req_1080), 2, "Must request both video and audio stream")
-                self.assertEqual(req_1080[0].get("height"), 1080, "Selected video stream must be 1080p")
-                self.assertTrue(req_1080[1].get("acodec") != "none", "Second stream must be audio")
+        # Test 1080p selector
+        fmt_1080 = build_format_selector("1080")
+        opts_1080 = {
+            "quiet": True,
+            "format": fmt_1080,
+            "format_sort": ["res", "ext:mp4:m4a"],
+        }
+        configure_ydl_anti_bot_opts(opts_1080, url)
+        with yt_dlp.YoutubeDL(opts_1080) as ydl_1080:
+            p_1080 = ydl_1080.process_ie_result(dict(meta), download=False)
+            req_1080 = p_1080.get("requested_formats")
+            self.assertIsNotNone(req_1080, "1080p selection must request video+audio streams")
+            self.assertEqual(len(req_1080), 2, "Must request both video and audio stream")
+            self.assertEqual(req_1080[0].get("height"), 1080, "Selected video stream must be 1080p")
+            self.assertTrue(req_1080[1].get("acodec") != "none", "Second stream must be audio")
 
 
 if __name__ == "__main__":

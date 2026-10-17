@@ -21,6 +21,7 @@ from .utils import (
     verify_output_file,
 )
 from .errors import classify_error, DownloadError, ToolNotFoundError
+from .cookies import configure_ydl_anti_bot_opts
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
@@ -158,11 +159,21 @@ class MediaDownloader:
             if not is_audio:
                 ydl_opts["merge_output_format"] = "mp4"
 
+        configure_ydl_anti_bot_opts(ydl_opts, cleaned_url)
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(cleaned_url, download=True)
                 if not info:
                     raise DownloadError("No media information retrieved.")
+        except Exception as e:
+            err_str = str(e).lower()
+            if any(k in err_str for k in ("bot", "429", "sign in", "page needs to be reloaded")):
+                configure_ydl_anti_bot_opts(ydl_opts, cleaned_url, force_refresh_cookies=True)
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl_retry:
+                    info = ydl_retry.extract_info(cleaned_url, download=True)
+            else:
+                raise
 
                 raw_path = ydl.prepare_filename(info)
                 final_path = raw_path
