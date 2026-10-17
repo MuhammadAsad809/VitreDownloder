@@ -155,19 +155,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           ? "image"
           : "video");
 
+      const actualResolution =
+        res.actualResolution ||
+        (res.actualHeight ? `${res.actualHeight}p` : selectedFormat === "best" ? "Best" : `${selectedFormat}p`);
+
       await StorageService.saveDownload({
         id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         title: recordTitle,
         url: url.trim(),
-        formatId: selectedFormat,
-        formatLabel:
-          selectedFormat === "best"
-            ? "Best"
-            : selectedFormat === "audio"
-            ? "Audio (MP3)"
-            : selectedFormat === "thumbnail"
-            ? "Thumbnail"
-            : `${selectedFormat}p`,
+        formatId: res.formatId || selectedFormat,
+        formatLabel: actualResolution,
+        actualResolution: actualResolution,
+        actualHeight: res.actualHeight,
         filePath: recordPath,
         fileSize: res.fileSize || 0,
         thumbnail: mediaInfo?.thumbnail || "",
@@ -182,7 +181,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       Alert.alert(
         "Download Completed",
-        `Saved to:\n${recordPath}\n\nAdded to your Downloads manager.`
+        `Saved to:\n${recordPath}\n\nDownloaded Resolution: ${actualResolution}`
       );
     } catch (err: any) {
       Alert.alert("Download Error", err?.message || "Download failed.");
@@ -214,6 +213,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       presets.push({ id: "480", label: "480p", sub: "SD", icon: "⚡" });
     if (maxHeight >= 360)
       presets.push({ id: "360", label: "360p", sub: "Standard", icon: "📱" });
+    if (maxHeight >= 240)
+      presets.push({ id: "240", label: "240p", sub: "Low", icon: "🔋" });
+    if (maxHeight >= 144)
+      presets.push({ id: "144", label: "144p", sub: "Data Saver", icon: "📶" });
     presets.push({
       id: "best",
       label: "Best",

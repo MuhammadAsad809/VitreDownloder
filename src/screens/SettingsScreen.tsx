@@ -92,9 +92,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const qualityOptions: Array<{ id: UserSettings["defaultQuality"]; label: string; sub: string }> = [
     { id: "best", label: "Best Available", sub: "Auto highest video/audio stream" },
-    { id: "1080", label: "1080p FHD", sub: "Prefer 1080p if available" },
-    { id: "720", label: "720p HD", sub: "Standard HD quality" },
-    { id: "480", label: "480p SD", sub: "Data saver" },
+    { id: "1080", label: "1080p FHD", sub: "Full HD quality (1080p)" },
+    { id: "720", label: "720p HD", sub: "High Definition (720p)" },
+    { id: "480", label: "480p SD", sub: "Standard quality (480p)" },
+    { id: "360", label: "360p", sub: "Medium quality (360p)" },
+    { id: "240", label: "240p", sub: "Low quality (240p)" },
+    { id: "144", label: "144p", sub: "Data saver quality (144p)" },
     { id: "audio", label: "Audio Only", sub: "Extract sound as MP3" },
   ];
 

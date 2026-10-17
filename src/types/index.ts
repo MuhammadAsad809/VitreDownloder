@@ -26,6 +26,8 @@ export interface DownloadRecord {
   url: string;
   formatId: string;
   formatLabel: string;
+  actualResolution?: string;
+  actualHeight?: number;
   filePath: string;
   fileSize: number;
   thumbnail: string;
@@ -35,7 +37,7 @@ export interface DownloadRecord {
 }
 
 export interface UserSettings {
-  defaultQuality: "best" | "1080" | "720" | "480" | "360" | "audio";
+  defaultQuality: "best" | "1080" | "720" | "480" | "360" | "240" | "144" | "audio";
   storageLocation: string;
   autoClearHistoryDays: number;
   themeAccent: "emerald" | "mint" | "cyan";

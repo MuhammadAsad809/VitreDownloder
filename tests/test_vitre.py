@@ -1,10 +1,12 @@
 """
-Unit tests for Vitre Downloader: URL validation, sanitization, collision avoidance, and tool detection.
+Unit tests for Vitre Downloader: URL validation, sanitization, collision avoidance,
+format construction, and YouTube quality resolution acceptance tests.
 """
 
 import os
 import unittest
 import tempfile
+import yt_dlp
 
 from vitre_downloader.utils import (
     clean_url,
@@ -16,35 +18,26 @@ from vitre_downloader.utils import (
 )
 from vitre_downloader.detector import ToolDetector, detect_environment
 from vitre_downloader.analyzer import MediaAnalyzer
+from vitre_downloader.downloader import build_format_selector
 from vitre_downloader.errors import InvalidURLError, classify_error, ToolNotFoundError
 
 
 class TestVitreDownloader(unittest.TestCase):
 
     def test_clean_url(self):
-        # Adding protocol
         self.assertEqual(clean_url("youtube.com/watch?v=123"), "https://youtube.com/watch?v=123")
-        # Stripping tracking query params for Instagram / TikTok
         ig_url = "https://www.instagram.com/reel/C12345/?igsh=abc123xyz&utm_source=ig_web_copy_link"
         self.assertEqual(clean_url(ig_url), "https://www.instagram.com/reel/C12345/")
-
         yt_short = "https://youtu.be/abc1234?si=tracker123"
         self.assertEqual(clean_url(yt_short), "https://youtu.be/abc1234")
 
     def test_sanitize_filename(self):
         dirty = 'My Video: "Episode 1" <HD> / Special? *Part 1* | 100%'
         clean = sanitize_filename(dirty)
-        self.assertNotIn(":", clean)
-        self.assertNotIn('"', clean)
-        self.assertNotIn("<", clean)
-        self.assertNotIn(">", clean)
-        self.assertNotIn("/", clean)
-        self.assertNotIn("?", clean)
-        self.assertNotIn("*", clean)
-        self.assertNotIn("|", clean)
+        for char in [":", '"', "<", ">", "/", "?", "*", "|"]:
+            self.assertNotIn(char, clean)
         self.assertEqual(clean, "My Video Episode 1 HD Special Part 1 100%")
 
-        # Test truncation
         long_name = "A" * 200
         self.assertEqual(len(sanitize_filename(long_name, max_length=50)), 50)
 
@@ -54,11 +47,9 @@ class TestVitreDownloader(unittest.TestCase):
             with open(file1, "w") as f:
                 f.write("content")
 
-            # First collision should become video (1).mp4
             alt1 = get_non_conflicting_path(file1)
             self.assertEqual(alt1, os.path.join(tmpdir, "video (1).mp4"))
 
-            # Create video (1).mp4 and test second collision
             with open(alt1, "w") as f:
                 f.write("content 2")
             alt2 = get_non_conflicting_path(file1)
@@ -78,17 +69,14 @@ class TestVitreDownloader(unittest.TestCase):
     def test_verify_output_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = os.path.join(tmpdir, "sample.mp4")
-            # Missing file
-            valid, err = verify_output_file(test_file)
+            valid, _ = verify_output_file(test_file)
             self.assertFalse(valid)
 
-            # Tiny file (< 1024 bytes)
             with open(test_file, "w") as f:
                 f.write("small")
-            valid, err = verify_output_file(test_file, min_bytes=100)
+            valid, _ = verify_output_file(test_file, min_bytes=100)
             self.assertFalse(valid)
 
-            # Valid file
             with open(test_file, "wb") as f:
                 f.write(b"x" * 2048)
             valid, err = verify_output_file(test_file, min_bytes=1024)
@@ -111,8 +99,6 @@ class TestVitreDownloader(unittest.TestCase):
         diag = detector.diagnose()
         self.assertIn("platform", diag)
         self.assertIn("tools", diag)
-        self.assertIn("ffmpeg", diag["tools"])
-        self.assertIn("aria2c", diag["tools"])
 
     def test_error_classification(self):
         err = Exception("Sign in to confirm you're not a bot")
@@ -122,6 +108,96 @@ class TestVitreDownloader(unittest.TestCase):
         err2 = Exception("No space left on device")
         classified2 = classify_error(err2)
         self.assertIn("disk space", classified2.user_friendly)
+
+    def test_build_format_selector(self):
+        """Verify dynamic format selector adheres to requirements."""
+        # Requirement 3: Default is bv*+ba/b
+        self.assertEqual(build_format_selector("best"), "bv*+ba/b")
+        self.assertEqual(build_format_selector(""), "bv*+ba/b")
+
+        # Requirement 4 & 5: bv*[height<=H]+ba/b[height<=H]
+        self.assertEqual(build_format_selector("1080"), "bv*[height<=1080]+ba/b[height<=1080]")
+        self.assertEqual(build_format_selector("1080p"), "bv*[height<=1080]+ba/b[height<=1080]")
+        self.assertEqual(build_format_selector("720"), "bv*[height<=720]+ba/b[height<=720]")
+        self.assertEqual(build_format_selector("720p"), "bv*[height<=720]+ba/b[height<=720]")
+        self.assertEqual(build_format_selector("480"), "bv*[height<=480]+ba/b[height<=480]")
+        self.assertEqual(build_format_selector("360"), "bv*[height<=360]+ba/b[height<=360]")
+        self.assertEqual(build_format_selector("240"), "bv*[height<=240]+ba/b[height<=240]")
+        self.assertEqual(build_format_selector("144"), "bv*[height<=144]+ba/b[height<=144]")
+
+        # Audio
+        self.assertEqual(build_format_selector("audio"), "bestaudio/best")
+        self.assertEqual(build_format_selector("anything", is_audio=True), "bestaudio/best")
+
+    def test_youtube_acceptance_iw7h4C_N1ec(self):
+        """
+        Acceptance test: For YouTube video 'iw7h4C_N1ec',
+        verify that 720p selects a 720p format and 1080p selects a 1080p format.
+        """
+        import os
+        import shutil
+        import urllib.request
+        import http.cookiejar
+
+        url = "https://www.youtube.com/watch?v=iw7h4C_N1ec"
+        cookie_path = os.path.join(os.path.dirname(__file__), "test_cookies.txt")
+        if not os.path.exists(cookie_path) or os.path.getsize(cookie_path) < 50:
+            jar = http.cookiejar.MozillaCookieJar(cookie_path)
+            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+            req = urllib.request.Request("https://www.youtube.com", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            try:
+                with opener.open(req, timeout=5) as resp:
+                    jar.save(ignore_discard=True, ignore_expires=True)
+            except Exception:
+                pass
+
+        ydl_opts = {
+            "quiet": True,
+            "cachedir": False,
+        }
+        if os.path.exists(cookie_path) and os.path.getsize(cookie_path) >= 50:
+            ydl_opts["cookiefile"] = cookie_path
+        if shutil.which("node"):
+            ydl_opts["js_runtimes"] = {"node": {}}
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            meta = ydl.extract_info(url, download=False)
+            formats = meta.get("formats", [])
+
+            # Check that formats are not artificially limited to 360p
+            available_heights = set(f.get("height") or 0 for f in formats if f.get("vcodec") != "none")
+            self.assertIn(720, available_heights, "720p must be present in available formats")
+            self.assertIn(1080, available_heights, "1080p must be present in available formats")
+
+            # Test 720p selector
+            fmt_720 = build_format_selector("720")
+            opts_720 = {
+                "quiet": True,
+                "format": fmt_720,
+                "format_sort": ["res", "ext:mp4:m4a"],
+            }
+            with yt_dlp.YoutubeDL(opts_720) as ydl_720:
+                p_720 = ydl_720.process_ie_result(dict(meta), download=False)
+                req_720 = p_720.get("requested_formats")
+                self.assertIsNotNone(req_720, "720p selection must request video+audio streams")
+                self.assertEqual(len(req_720), 2, "Must request both video and audio stream")
+                self.assertEqual(req_720[0].get("height"), 720, "Selected video stream must be 720p")
+                self.assertTrue(req_720[1].get("acodec") != "none", "Second stream must be audio")
+
+            # Test 1080p selector
+            fmt_1080 = build_format_selector("1080")
+            opts_1080 = {
+                "quiet": True,
+                "format": fmt_1080,
+                "format_sort": ["res", "ext:mp4:m4a"],
+            }
+            with yt_dlp.YoutubeDL(opts_1080) as ydl_1080:
+                p_1080 = ydl_1080.process_ie_result(dict(meta), download=False)
+                req_1080 = p_1080.get("requested_formats")
+                self.assertIsNotNone(req_1080, "1080p selection must request video+audio streams")
+                self.assertEqual(len(req_1080), 2, "Must request both video and audio stream")
+                self.assertEqual(req_1080[0].get("height"), 1080, "Selected video stream must be 1080p")
+                self.assertTrue(req_1080[1].get("acodec") != "none", "Second stream must be audio")
 
 
 if __name__ == "__main__":

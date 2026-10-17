@@ -57,11 +57,6 @@ class MediaAnalyzer:
             "skip_download": True,
             "noplaylist": True,
             "cachedir": False,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["ios", "android", "mweb"],
-                }
-            },
             "http_headers": {
                 "User-Agent": _get_user_agent(cleaned_url),
                 "Accept-Language": "en-US,en;q=0.9",

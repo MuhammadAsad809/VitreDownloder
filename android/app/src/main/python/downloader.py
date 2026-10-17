@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import certifi
 import yt_dlp
 
@@ -43,6 +44,8 @@ def _classify_error(e: Exception, is_instagram: bool = False) -> str:
     lower = err.lower()
     if is_instagram:
         return "Public content only / try another link"
+    if "ffmpeg is not installed" in lower or "requires ffmpeg" in lower:
+        return "FFmpeg is required to merge video and audio streams at high resolution."
     if "sign in to confirm" in lower or "not a bot" in lower:
         return "YouTube bot check. Try mobile data instead of Wi-Fi, or try again later."
     if "the page needs to be reloaded" in lower:
@@ -56,8 +59,20 @@ def _classify_error(e: Exception, is_instagram: bool = False) -> str:
     return err[:180]
 
 
+def _build_format_selector(format_id: str, is_audio: bool = False) -> str:
+    """Construct dynamic format string (bv*+ba/b default, or height-limited)."""
+    if is_audio or format_id == "audio":
+        return "bestaudio/best"
+    q = (format_id or "").lower().replace("p", "").strip()
+    if q in ("1080", "720", "480", "360", "240", "144"):
+        return f"bv*[height<={q}]+ba/b[height<={q}]"
+    if q == "best" or not q:
+        return "bv*+ba/b"
+    return f"{format_id}+ba/{format_id}/bv*+ba/b"
+
+
 def get_media_info(url: str) -> str:
-    """Extract metadata only (no format lock on info extract)."""
+    """Extract metadata without artificial 360p or player_client format locks."""
     clean_url = _clean_url(url)
     is_instagram = "instagram.com" in clean_url
 
@@ -88,11 +103,6 @@ def get_media_info(url: str) -> str:
         "skip_download": True,
         "noplaylist": True,
         "cachedir": False,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["ios", "android", "mweb"],
-            }
-        },
         "http_headers": {
             "User-Agent": _ua_for(clean_url),
             "Accept-Language": "en-US,en;q=0.9",
@@ -233,6 +243,8 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
                     "filePath": saved_thumb or effective_dir,
                     "title": f"{title} (Thumbnail)",
                     "category": "image",
+                    "actualResolution": "Original Image",
+                    "actualHeight": 0,
                 })
         except Exception as e:
             return json.dumps({"success": False, "error": str(e)})
@@ -248,49 +260,44 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
                     "filePath": path,
                     "title": os.path.basename(path),
                     "category": "video",
+                    "actualResolution": "1080p",
+                    "actualHeight": 1080,
                 })
         except Exception:
             pass
 
-    presets = {
-        "best": "bestvideo*+bestaudio/best",
-        "1080": "bestvideo[height<=1080]+bestaudio/bestvideo+bestaudio/best",
-        "720": "bestvideo[height<=720]+bestaudio/bestvideo+bestaudio/best",
-        "480": "bestvideo[height<=480]+bestaudio/bestvideo+bestaudio/best",
-        "360": "bestvideo[height<=360]+bestaudio/bestvideo+bestaudio/best",
-        "audio": "bestaudio/best",
-    }
+    # Dynamic format selection based on user-selected quality
+    chosen = _build_format_selector(format_id, is_audio)
 
-    if is_audio:
-        chosen = "bestaudio/best"
-    elif format_id in presets:
-        chosen = presets[format_id]
-    elif format_id and format_id not in ("unknown", ""):
-        chosen = f"{format_id}/bestvideo*+bestaudio/best"
-    else:
-        chosen = "bestvideo*+bestaudio/best"
+    # Detect if ffmpeg binary is available
+    ffmpeg_bin = shutil.which("ffmpeg")
+
+    # If separate video and audio streams are required but FFmpeg is missing, report clear error
+    if "+" in chosen and not ffmpeg_bin:
+        return json.dumps({
+            "success": False,
+            "error": "FFmpeg is required to merge separate video and audio streams. Please install FFmpeg to download at this quality."
+        })
 
     ydl_opts = {
         "quiet": True,
         "noplaylist": True,
         "cachedir": False,
         "format": chosen,
+        "format_sort": ["res", "ext:mp4:m4a"],
         "outtmpl": os.path.join(effective_dir, "%(title).100s.%(ext)s"),
-        "merge_output_format": "mp4",
-        "writethumbnail": True,
-        "writesubtitles": False,
         "progress_hooks": [progress_hook],
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["ios", "android", "mweb"],
-            }
-        },
         "http_headers": {
             "User-Agent": _ua_for(clean_url),
             "Accept-Language": "en-US,en;q=0.9",
             "Accept": "*/*",
         },
     }
+
+    if ffmpeg_bin:
+        ydl_opts["ffmpeg_location"] = ffmpeg_bin
+        if not is_audio:
+            ydl_opts["merge_output_format"] = "mp4"
 
     if is_instagram:
         ydl_opts["http_headers"].update({
@@ -313,6 +320,18 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
 
             file_size = os.path.getsize(path)
 
+            # Determine actual downloaded resolution
+            req_formats = info.get("requested_formats")
+            if req_formats:
+                vf = req_formats[0]
+                actual_height = vf.get("height") or info.get("height") or 0
+                actual_res = vf.get("resolution") or (f"{actual_height}p" if actual_height else "audio")
+                chosen_format_id = "+".join(str(f.get("format_id")) for f in req_formats)
+            else:
+                actual_height = info.get("height") or 0
+                actual_res = info.get("resolution") or (f"{actual_height}p" if actual_height else "audio")
+                chosen_format_id = str(info.get("format_id") or format_id)
+
             return json.dumps({
                 "success": True,
                 "filePath": path,
@@ -322,6 +341,9 @@ def download_media_file(url: str, format_id: str, output_directory: str, progres
                 "fileSize": file_size,
                 "category": "audio" if is_audio else "video",
                 "ext": os.path.splitext(path)[1].lstrip("."),
+                "actualResolution": actual_res,
+                "actualHeight": actual_height,
+                "formatId": chosen_format_id,
             })
     except Exception as e:
         return json.dumps({"success": False, "error": _classify_error(e, is_instagram)})

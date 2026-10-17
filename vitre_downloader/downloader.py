@@ -1,9 +1,11 @@
 """
-Media download orchestrator with yt-dlp Python API, progress hooks, and aria2 acceleration.
+Media download orchestrator with yt-dlp Python API, dynamic format selection,
+FFmpeg stream merging, and aria2 acceleration.
 """
 
 import os
 import json
+import logging
 import certifi
 from typing import Optional, Callable, Dict, Any
 import yt_dlp
@@ -18,9 +20,32 @@ from .utils import (
     format_bytes,
     verify_output_file,
 )
-from .errors import classify_error, DownloadError
+from .errors import classify_error, DownloadError, ToolNotFoundError
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
+
+logger = logging.getLogger("vitre.downloader")
+
+
+def build_format_selector(quality: str, is_audio: bool = False) -> str:
+    """
+    Constructs dynamic yt-dlp format selector.
+    Default: 'bv*+ba/b'
+    Quality level (144p, 240p, 360p, 480p, 720p, 1080p): 'bv*[height<=H]+ba/b[height<=H]'
+    """
+    if is_audio or quality == "audio":
+        return "bestaudio/best"
+
+    q_clean = quality.lower().replace("p", "").strip() if quality else ""
+
+    if q_clean in ("1080", "720", "480", "360", "240", "144"):
+        return f"bv*[height<={q_clean}]+ba/b[height<={q_clean}]"
+
+    if q_clean == "best" or not q_clean:
+        return "bv*+ba/b"
+
+    # Specific format ID requested
+    return f"{quality}+ba/{quality}/bv*+ba/b"
 
 
 class MediaDownloader:
@@ -79,53 +104,36 @@ class MediaDownloader:
         audio_bitrate: str = "192k",
     ) -> Dict[str, Any]:
         """
-        Download media with specified options.
-        - quality: 'best', '1080', '720', '480', '360', or a raw format_id.
-        - audio_only: True to extract and convert audio to MP3.
-        - audio_bitrate: Bitrate for converted MP3 (e.g. '192k', '320k').
+        Download media with dynamic quality selection and FFmpeg merging.
+        - quality: 'best', '1080', '720', '480', '360', '240', '144', or raw format_id.
+        - audio_only: True to extract audio and convert to MP3.
         """
         cleaned_url = MediaAnalyzer.validate_url(url)
         is_audio = audio_only or quality == "audio"
 
-        # Determine target folder: separate Videos and Audio
         target_dir = self.detector.get_category_dir("audio" if is_audio else "video")
         os.makedirs(target_dir, exist_ok=True)
 
-        # Preset quality strings
-        presets = {
-            "best": "bestvideo*+bestaudio/best",
-            "1080": "bestvideo[height<=1080]+bestaudio/bestvideo+bestaudio/best",
-            "720": "bestvideo[height<=720]+bestaudio/bestvideo+bestaudio/best",
-            "480": "bestvideo[height<=480]+bestaudio/bestvideo+bestaudio/best",
-            "360": "bestvideo[height<=360]+bestaudio/bestvideo+bestaudio/best",
-            "audio": "bestaudio/best",
-        }
+        chosen_format = build_format_selector(quality, is_audio)
 
-        if is_audio:
-            chosen_format = "bestaudio/best"
-        elif quality in presets:
-            chosen_format = presets[quality]
-        elif quality and quality not in ("unknown", ""):
-            chosen_format = f"{quality}/bestvideo*+bestaudio/best"
-        else:
-            chosen_format = "bestvideo*+bestaudio/best"
-
-        # If FFmpeg is NOT installed, adjust format selection to prefer pre-merged single files
-        if not self.detector.has_ffmpeg and not is_audio:
-            chosen_format = "best[ext=mp4]/best"
+        # Requirement 7: Report clear error if merging is required but FFmpeg is missing.
+        # Do not silently fall back to 360p.
+        requires_merging = "+" in chosen_format
+        if requires_merging and not self.detector.has_ffmpeg:
+            raise ToolNotFoundError(
+                "FFmpeg is missing: Merging separate video and audio streams at requested quality "
+                f"('{quality}') requires FFmpeg. Please install FFmpeg (e.g. 'pkg install ffmpeg') "
+                "or choose an available single-stream format."
+            )
 
         ydl_opts = {
             "quiet": True,
             "noplaylist": True,
             "cachedir": False,
             "format": chosen_format,
+            "format_sort": ["res", "ext:mp4:m4a"],
             "outtmpl": os.path.join(target_dir, "%(title).100s.%(ext)s"),
             "progress_hooks": [self._progress_hook],
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["ios", "android", "mweb"],
-                }
-            },
             "http_headers": {
                 "User-Agent": _get_user_agent(cleaned_url),
                 "Accept-Language": "en-US,en;q=0.9",
@@ -133,7 +141,6 @@ class MediaDownloader:
             },
         }
 
-        # Instagram headers
         if "instagram.com" in cleaned_url:
             ydl_opts["http_headers"].update({
                 "X-IG-App-ID": "936619743392459",
@@ -142,12 +149,10 @@ class MediaDownloader:
                 "Referer": "https://www.instagram.com/",
             })
 
-        # External aria2 accelerator if requested and installed
         if self.use_aria2:
             ydl_opts["external_downloader"] = self.detector.aria2c_path
             ydl_opts["external_downloader_args"] = ["-s", "8", "-x", "8", "-k", "1M"]
 
-        # If FFmpeg is present, specify merge container
         if self.detector.has_ffmpeg:
             ydl_opts["ffmpeg_location"] = self.detector.ffmpeg_path
             if not is_audio:
@@ -160,7 +165,6 @@ class MediaDownloader:
                     raise DownloadError("No media information retrieved.")
 
                 raw_path = ydl.prepare_filename(info)
-                # Resolve possible container change (e.g., .webm merged into .mp4)
                 final_path = raw_path
                 if not os.path.exists(final_path):
                     base, _ = os.path.splitext(final_path)
@@ -169,7 +173,7 @@ class MediaDownloader:
                             final_path = base + candidate_ext
                             break
 
-                # Post-process audio to MP3 if requested and FFmpeg available
+                # Post-process audio to MP3 if requested and FFmpeg is available
                 if is_audio and audio_format == "mp3" and self.detector.has_ffmpeg:
                     if not final_path.lower().endswith(".mp3"):
                         final_path = self.processor.convert_to_mp3(
@@ -178,13 +182,26 @@ class MediaDownloader:
                             keep_original=False
                         )
 
-                # Verify final output file
                 valid, err = verify_output_file(final_path)
                 if not valid:
                     raise DownloadError(f"Downloaded file validation failed: {err}")
 
                 file_size = os.path.getsize(final_path)
                 title = info.get("title") or os.path.basename(final_path)
+
+                # Determine actual downloaded resolution
+                req_formats = info.get("requested_formats")
+                if req_formats:
+                    vf = req_formats[0]
+                    actual_height = vf.get("height") or info.get("height") or 0
+                    actual_res = vf.get("resolution") or (f"{actual_height}p" if actual_height else "audio")
+                    selected_id = "+".join(str(f.get("format_id")) for f in req_formats)
+                else:
+                    actual_height = info.get("height") or 0
+                    actual_res = info.get("resolution") or (f"{actual_height}p" if actual_height else "audio")
+                    selected_id = str(info.get("format_id") or quality)
+
+                print(f"[Vitre] Downloaded format: {selected_id} | Actual resolution: {actual_res} ({actual_height}p)")
 
                 return {
                     "success": True,
@@ -193,7 +210,10 @@ class MediaDownloader:
                     "file_size": file_size,
                     "file_size_human": format_bytes(file_size),
                     "duration": info.get("duration") or 0,
-                    "format_id": quality,
+                    "format_id": selected_id,
+                    "requested_quality": quality,
+                    "actual_resolution": actual_res,
+                    "actual_height": actual_height,
                     "category": "audio" if is_audio else "video",
                     "thumbnail": info.get("thumbnail") or "",
                 }

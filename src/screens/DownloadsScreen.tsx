@@ -270,9 +270,9 @@ export const DownloadsScreen: React.FC<DownloadsScreenProps> = ({
                   {item.title}
                 </Text>
                 <View style={styles.metaRow}>
-                  {item.formatLabel ? (
+                  {(item.actualResolution || item.formatLabel) ? (
                     <View style={styles.formatTag}>
-                      <Text style={styles.formatTagText}>{item.formatLabel}</Text>
+                      <Text style={styles.formatTagText}>{item.actualResolution || item.formatLabel}</Text>
                     </View>
                   ) : null}
                   {item.fileSize > 0 && (
