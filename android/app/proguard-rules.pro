@@ -12,3 +12,9 @@
 
 # Keep Python/Chaquopy related classes
 -keep class com.chaquo.python.** { *; }
+
+# Keep Google AdMob and Consent SDK classes
+-keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.android.gms.internal.consent_sdk.** { *; }
+-keep class com.google.ads.mediation.** { *; }
+

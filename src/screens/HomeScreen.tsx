@@ -19,6 +19,7 @@ import {
 import { GlassContainer } from "../components/GlassContainer";
 import { StorageService } from "../services/storage";
 import { FormatItem, MediaMetadata } from "../types";
+import { AdMobService } from "../services/admob";
 
 const { PythonBridgeModule } = NativeModules;
 const pythonEvents = PythonBridgeModule
@@ -178,6 +179,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       if (onDownloadCompleted) {
         onDownloadCompleted();
       }
+
+      // Show AdMob Interstitial Ad upon download completion
+      AdMobService.showInterstitial();
 
       Alert.alert(
         "Download Completed",

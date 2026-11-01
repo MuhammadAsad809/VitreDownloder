@@ -14,11 +14,15 @@ import { DownloadsScreen } from "./screens/DownloadsScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { StorageService } from "./services/storage";
 import { UserSettings } from "./types";
+import { AdMobService } from "./services/admob";
+import { AdBanner } from "./components/AdBanner";
+import { DeveloperSupportModal } from "./components/DeveloperSupportModal";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>("home");
   const [downloadsCount, setDownloadsCount] = useState<number>(0);
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
 
   const refreshDownloadsCount = useCallback(async () => {
     try {
@@ -32,6 +36,17 @@ export default function App() {
   useEffect(() => {
     refreshDownloadsCount();
     StorageService.getSettings().then((s) => setSettings(s));
+    AdMobService.init();
+
+    // Check if user is opening app for the first time
+    StorageService.hasSeenDeveloperSupport().then((seen) => {
+      if (!seen) {
+        setTimeout(() => {
+          setShowSupportModal(true);
+          StorageService.setDeveloperSupportSeen();
+        }, 1200);
+      }
+    });
   }, [refreshDownloadsCount]);
 
   const accentColor =
@@ -73,11 +88,21 @@ export default function App() {
             )}
           </View>
 
+          {/* AdMob Banner Ad */}
+          <AdBanner />
+
           {/* Bottom Glass Tab Bar */}
           <NavigationTabBar
             activeTab={activeTab}
             onSelectTab={setActiveTab}
             downloadsCount={downloadsCount}
+          />
+
+          {/* First Launch Developer Support Modal */}
+          <DeveloperSupportModal
+            visible={showSupportModal}
+            onClose={() => setShowSupportModal(false)}
+            accentColor={accentColor}
           />
         </LiquidGlassProvider>
       </SafeAreaView>

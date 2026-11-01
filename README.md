@@ -112,3 +112,44 @@ python3 -m unittest tests/test_vitre.py
   Run `termux-setup-storage` and ensure Termux has storage permission in Android App Info settings.
 - **YouTube bot check / Sign in to confirm**:
   YouTube occasionally rate-limits IP addresses or Wi-Fi subnets. Switch between Wi-Fi and mobile data or retry after a few minutes.
+
+---
+
+## Google AdMob Setup & Monetization
+
+Vitre Downloader integrates **`react-native-google-mobile-ads`** with complete support for:
+- **Adaptive Banner Ads**: Displayed at the bottom above the navigation tab bar without obstructing content.
+- **Interstitial Ads**: Shown when a video or audio download completes.
+- **Rewarded Video Ads**: Allows users to support the developer.
+- **App Open Ads**: Supported on launch.
+- **First Launch Developer Support Modal**: Shows a personal note from the solo developer with an option to watch an ad to support development. Accessible anytime from Settings.
+
+### Configuration for Production:
+1. **AdMob App ID**:
+   - In `app.json` and `package.json`:
+     ```json
+     "react-native-google-mobile-ads": {
+       "android_app_id": "ca-app-pub-YOUR_ADMOB_APP_ID~XXXXXXXXXX"
+     }
+     ```
+   - In `android/app/src/main/AndroidManifest.xml`:
+     ```xml
+     <meta-data
+         android:name="com.google.android.gms.ads.APPLICATION_ID"
+         android:value="ca-app-pub-YOUR_ADMOB_APP_ID~XXXXXXXXXX" />
+     ```
+
+2. **Ad Unit IDs**:
+   Open `src/services/admob.ts` and replace test IDs with your production AdMob unit IDs:
+   ```typescript
+   export const ADMOB_CONFIG = {
+     useTestAds: false, // Set to false for production release
+     android: {
+       bannerAdUnitId: "ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY",
+       interstitialAdUnitId: "ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY",
+       rewardedAdUnitId: "ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY",
+       appOpenAdUnitId: "ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY",
+     },
+   };
+   ```
+

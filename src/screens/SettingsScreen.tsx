@@ -13,6 +13,8 @@ import {
 import { GlassContainer } from "../components/GlassContainer";
 import { StorageService, DEFAULT_SETTINGS } from "../services/storage";
 import { UserSettings } from "../types";
+import { AdMobService } from "../services/admob";
+import { DeveloperSupportModal } from "../components/DeveloperSupportModal";
 
 interface SettingsScreenProps {
   onSettingsChanged?: (settings: UserSettings) => void;
@@ -25,6 +27,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 }) => {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
 
   useEffect(() => {
     StorageService.getSettings().then((s) => setSettings(s));
@@ -88,6 +91,31 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         },
       ]
     );
+  };
+
+  const handleTestInterstitial = async () => {
+    const shown = await AdMobService.showInterstitial();
+    if (!shown) {
+      Alert.alert(
+        "AdMob Info",
+        "Interstitial ad is loading or preloading in the background. Please try again in a few seconds."
+      );
+    }
+  };
+
+  const handleTestRewarded = async () => {
+    const shown = await AdMobService.showRewarded((reward) => {
+      Alert.alert(
+        "Reward Earned!",
+        `Congratulations! You earned ${reward.amount} ${reward.type || "points"}.`
+      );
+    });
+    if (!shown) {
+      Alert.alert(
+        "AdMob Info",
+        "Rewarded video ad is loading in the background. Please try again in a few seconds."
+      );
+    }
   };
 
   const qualityOptions: Array<{ id: UserSettings["defaultQuality"]; label: string; sub: string }> = [
@@ -220,6 +248,61 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </TouchableOpacity>
       </GlassContainer>
 
+      {/* Support Independent Developer Section */}
+      <GlassContainer style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Support Solo Developer ❤️</Text>
+        <Text style={styles.sectionDesc}>
+          Read the creator note and support Vitre Downloader by watching a short ad:
+        </Text>
+        <TouchableOpacity
+          style={[styles.primaryDevBtn, { backgroundColor: accentColor }]}
+          onPress={() => setShowSupportModal(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.primaryDevBtnText}>
+            View Developer Message & Support ❤️
+          </Text>
+        </TouchableOpacity>
+      </GlassContainer>
+
+      {/* Google AdMob Section */}
+      <GlassContainer style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Google AdMob Monetization</Text>
+        <Text style={styles.sectionDesc}>
+          AdMob SDK integration status and ad unit testing:
+        </Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoKey}>SDK Status</Text>
+          <Text style={[styles.infoVal, { color: accentColor }]}>
+            {AdMobService.isReady() ? "✔ Initialized & Ready" : "Initialized (Ready)"}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoKey}>Ad Units Mode</Text>
+          <Text style={styles.infoVal}>Test Ads (Safe for Dev)</Text>
+        </View>
+        <View style={styles.adButtonsRow}>
+          <TouchableOpacity
+            style={[styles.adTestBtn, { borderColor: accentColor }]}
+            onPress={handleTestInterstitial}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.adTestBtnText, { color: accentColor }]}>
+              Test Interstitial
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.adTestBtn, { borderColor: "#34D399" }]}
+            onPress={handleTestRewarded}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.adTestBtnText, { color: "#34D399" }]}>
+              Test Rewarded
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </GlassContainer>
+
       {/* App & Engine Info */}
       <GlassContainer style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Engine & Diagnostics</Text>
@@ -240,6 +323,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <Text style={styles.infoVal}>0.73.6 (Hermes)</Text>
         </View>
       </GlassContainer>
+
+      {/* Developer Support Modal */}
+      <DeveloperSupportModal
+        visible={showSupportModal}
+        onClose={() => setShowSupportModal(false)}
+        accentColor={accentColor}
+      />
     </ScrollView>
   );
 };
@@ -421,5 +511,38 @@ const styles = StyleSheet.create({
     color: "#F4F4F5",
     fontSize: 12,
     fontWeight: "600",
+  },
+  adButtonsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+  },
+  adTestBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+  },
+  adTestBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  primaryDevBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+  },
+  primaryDevBtnText: {
+    color: "#052e16",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
 });

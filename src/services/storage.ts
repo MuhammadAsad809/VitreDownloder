@@ -3,6 +3,7 @@ import { DownloadRecord, UserSettings } from "../types";
 
 const DOWNLOADS_KEY = "@vitre_downloads_v1";
 const SETTINGS_KEY = "@vitre_settings_v1";
+const DEV_SUPPORT_SEEN_KEY = "@vitre_dev_support_seen_v1";
 
 export const DEFAULT_SETTINGS: UserSettings = {
   defaultQuality: "best",
@@ -92,6 +93,23 @@ export const StorageService = {
       console.warn("StorageService.saveSettings error:", e);
       memorySettings = { ...memorySettings, ...settings };
       return memorySettings;
+    }
+  },
+
+  async hasSeenDeveloperSupport(): Promise<boolean> {
+    try {
+      const val = await AsyncStorage.getItem(DEV_SUPPORT_SEEN_KEY);
+      return val === "true";
+    } catch {
+      return false;
+    }
+  },
+
+  async setDeveloperSupportSeen(): Promise<void> {
+    try {
+      await AsyncStorage.setItem(DEV_SUPPORT_SEEN_KEY, "true");
+    } catch (e) {
+      console.warn("StorageService.setDeveloperSupportSeen error:", e);
     }
   },
 };
