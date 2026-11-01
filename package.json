@@ -13,7 +13,7 @@
     "liquid-glass-kit": "file:./liquid-glass-kit",
     "react": "18.2.0",
     "react-native": "0.73.6",
-    "react-native-google-mobile-ads": "^14.11.0",
+    "react-native-google-mobile-ads": "14.7.2",
     "react-native-linear-gradient": "^2.8.3",
     "tamagui": "1.107.0"
   },
