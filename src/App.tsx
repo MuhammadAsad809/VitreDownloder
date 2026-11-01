@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   SafeAreaView,
   View,
   StyleSheet,
   StatusBar,
+  AppState,
+  AppStateStatus,
 } from "react-native";
 import { TamaguiProvider } from "@tamagui/core";
 import { LiquidGlassProvider } from "liquid-glass-kit";
@@ -23,6 +25,7 @@ export default function App() {
   const [downloadsCount, setDownloadsCount] = useState<number>(0);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [showSupportModal, setShowSupportModal] = useState<boolean>(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const refreshDownloadsCount = useCallback(async () => {
     try {
@@ -33,19 +36,43 @@ export default function App() {
     }
   }, []);
 
+  // Handle warm start (app returning to foreground)
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextAppState: AppStateStatus) => {
+        if (
+          appStateRef.current.match(/inactive|background/) &&
+          nextAppState === "active"
+        ) {
+          console.log("[AdMob] App returned to foreground, showing App Open ad");
+          AdMobService.showAppOpen();
+        }
+        appStateRef.current = nextAppState;
+      }
+    );
+
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     refreshDownloadsCount();
     StorageService.getSettings().then((s) => setSettings(s));
-    AdMobService.init();
-
-    // Check if user is opening app for the first time
-    StorageService.hasSeenDeveloperSupport().then((seen) => {
-      if (!seen) {
-        setTimeout(() => {
-          setShowSupportModal(true);
-          StorageService.setDeveloperSupportSeen();
-        }, 1200);
-      }
+    AdMobService.init().then(() => {
+      // Check if user is opening app for the first time
+      StorageService.hasSeenDeveloperSupport().then((seen) => {
+        if (!seen) {
+          setTimeout(() => {
+            setShowSupportModal(true);
+            StorageService.setDeveloperSupportSeen();
+          }, 1200);
+        } else {
+          // Regular cold start: trigger App Open Ad after brief initialization delay
+          setTimeout(() => {
+            AdMobService.showAppOpen();
+          }, 1500);
+        }
+      });
     });
   }, [refreshDownloadsCount]);
 

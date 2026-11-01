@@ -118,6 +118,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
+  const handleTestAppOpen = async () => {
+    const shown = await AdMobService.showAppOpen();
+    if (!shown) {
+      Alert.alert(
+        "AdMob Info",
+        "App Open Ad is loading in the background. Please retry in a few seconds."
+      );
+    }
+  };
+
   const qualityOptions: Array<{ id: UserSettings["defaultQuality"]; label: string; sub: string }> = [
     { id: "best", label: "Best Available", sub: "Auto highest video/audio stream" },
     { id: "1080", label: "1080p FHD", sub: "Full HD quality (1080p)" },
@@ -279,9 +289,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoKey}>Ad Units Mode</Text>
-          <Text style={styles.infoVal}>Test Ads (Safe for Dev)</Text>
+          <Text style={[styles.infoVal, { color: "#34D399" }]}>
+            Live Production (App Open Active)
+          </Text>
         </View>
         <View style={styles.adButtonsRow}>
+          <TouchableOpacity
+            style={[styles.adTestBtn, { borderColor: "#06B6D4" }]}
+            onPress={handleTestAppOpen}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.adTestBtnText, { color: "#06B6D4" }]}>
+              Test App Open
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.adTestBtn, { borderColor: accentColor }]}
             onPress={handleTestInterstitial}

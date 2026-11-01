@@ -27,13 +27,18 @@ export const DeveloperSupportModal: React.FC<DeveloperSupportModalProps> = ({
   const handleWatchAd = async () => {
     setAdLoading(true);
     try {
-      // Try to show a rewarded ad first
-      let shown = await AdMobService.showRewarded(() => {
-        Alert.alert(
-          "Heartfelt Thanks! ❤️",
-          "Thank you so much for your support! Your view directly keeps Vitre Downloader active and continuously improved."
-        );
-      });
+      // Try to show the App Open Ad (user's live ad unit)
+      let shown = await AdMobService.showAppOpen();
+
+      // If not ready, try rewarded ad
+      if (!shown) {
+        shown = await AdMobService.showRewarded(() => {
+          Alert.alert(
+            "Heartfelt Thanks! ❤️",
+            "Thank you so much for your support! Your view directly keeps Vitre Downloader active and continuously improved."
+          );
+        });
+      }
 
       // If rewarded ad wasn't ready, try showing interstitial
       if (!shown) {

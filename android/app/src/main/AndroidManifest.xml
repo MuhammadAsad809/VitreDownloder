@@ -16,10 +16,10 @@
         android:theme="@style/AppTheme"
         android:requestLegacyExternalStorage="true">
 
-        <!-- Google Mobile Ads (AdMob) App ID: Replace with your production ID in release -->
+        <!-- Google Mobile Ads (AdMob) Production App ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
+            android:value="ca-app-pub-2775984163501785~5678049612" />
 
         <activity
             android:name=".MainActivity"
